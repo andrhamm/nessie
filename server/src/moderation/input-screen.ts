@@ -1,4 +1,4 @@
-import type { generateText } from "ai";
+import type { generateText, LanguageModel } from "ai";
 import { z } from "zod";
 import { formatCategoriesForPrompt } from "./categories";
 
@@ -28,7 +28,7 @@ Respond with ONLY a JSON object with these fields:
 
 export interface InputScreenDeps {
   generateText: typeof generateText;
-  model: string;
+  model: LanguageModel;
 }
 
 export async function screenInput(text: string, deps: InputScreenDeps): Promise<InputScreenResult> {

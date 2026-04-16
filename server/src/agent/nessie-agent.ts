@@ -1,4 +1,4 @@
-import { type generateText, Output, tool } from "ai";
+import { type generateText, type LanguageModel, Output, tool } from "ai";
 import { z } from "zod";
 import { getSafeFallback, SANITIZED_INPUT_MESSAGE } from "../moderation/fallbacks";
 import { type InputScreenDeps, screenInput } from "../moderation/input-screen";
@@ -13,9 +13,9 @@ interface ConversationMessage {
 }
 
 export interface NessieAgentConfig {
-  model: string;
+  model: LanguageModel;
   memoryStore: MemoryStore;
-  moderationModel?: string;
+  moderationModel?: LanguageModel;
   enableInputScreening?: boolean;
   enableOutputCheck?: boolean;
 }
@@ -27,8 +27,8 @@ export interface NessieAgentDeps {
 export class NessieAgent {
   private readonly sessions: Map<string, ConversationMessage[]> = new Map();
   private readonly memoryStore: MemoryStore;
-  private readonly model: string;
-  private readonly moderationModel: string;
+  private readonly model: LanguageModel;
+  private readonly moderationModel: LanguageModel;
   private readonly enableInputScreening: boolean;
   private readonly enableOutputCheck: boolean;
   private readonly deps: NessieAgentDeps;

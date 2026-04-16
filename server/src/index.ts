@@ -10,6 +10,7 @@ Usage: myapp <command>
 
 Commands:
   serve    Start the HTTP server
+  chat     Start an interactive chat with Nessie
   help     Show this help message
 
 Options:
@@ -23,7 +24,7 @@ function cmdServe(): void {
   p.log.success(`Server listening on http://localhost:${server.port}`);
 }
 
-function main(args: string[]): void {
+async function main(args: string[]): Promise<void> {
   const command = args[0];
 
   if (!command || command === "help" || command === "--help" || command === "-h") {
@@ -35,6 +36,11 @@ function main(args: string[]): void {
     case "serve":
       cmdServe();
       break;
+    case "chat": {
+      const { runChat } = await import("./cli/chat");
+      await runChat();
+      break;
+    }
     default:
       p.log.error(`Unknown command: ${command}`);
       printHelp();
