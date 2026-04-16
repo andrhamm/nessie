@@ -1,0 +1,7 @@
+[test]
+root = "./test"
+preload = ["./test/setup.ts"]
+coverageThreshold = { line = 0.95 }
+coverageReporter = ["text", "lcov"]
+coverageDir = "coverage"
+coverageSkipTestFiles = true

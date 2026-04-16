@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Pre-commit hook: run biome check on staged files
+set -euo pipefail
+
+# Only check staged .ts and .json files
+STAGED=$(git diff --cached --name-only --diff-filter=ACMR -- '*.ts' '*.json' | head -100)
+
+if [ -z "$STAGED" ]; then
+  exit 0
+fi
+
+echo "pre-commit: biome check"
+bunx --bun biome check $STAGED

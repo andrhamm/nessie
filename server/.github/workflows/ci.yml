@@ -1,0 +1,156 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build test stage
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: test
+          load: false
+          push: false
+          outputs: type=local,dest=out
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Test report
+        if: always()
+        uses: mikepenz/action-junit-report@v5
+        with:
+          report_paths: out/app/test-results.xml
+          comment: true
+          updateComment: true
+
+      - name: Install lcov
+        if: always()
+        run: sudo apt-get install -y lcov
+
+      - name: Coverage report
+        if: always()
+        uses: zgosalvez/github-actions-report-lcov@v4
+        with:
+          coverage-files: out/app/coverage/lcov.info
+          minimum-coverage: 95
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  e2e:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    needs: test
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for Playwright config
+        id: check
+        run: |
+          if [ -f playwright.config.ts ]; then
+            echo "enabled=true" >> $GITHUB_OUTPUT
+          else
+            echo "enabled=false" >> $GITHUB_OUTPUT
+            echo "No playwright.config.ts found — skipping e2e"
+          fi
+
+      - name: Setup Bun
+        if: steps.check.outputs.enabled == 'true'
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Cache Bun dependencies
+        if: steps.check.outputs.enabled == 'true'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install dependencies
+        if: steps.check.outputs.enabled == 'true'
+        run: bun install
+
+      - name: Get Playwright version
+        if: steps.check.outputs.enabled == 'true'
+        id: playwright-version
+        run: echo "version=$(bunx playwright --version | awk '{print $2}')" >> $GITHUB_OUTPUT
+
+      - name: Restore Playwright cache
+        if: steps.check.outputs.enabled == 'true'
+        id: playwright-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}
+
+      - name: Install Playwright browsers
+        if: steps.check.outputs.enabled == 'true' && steps.playwright-cache.outputs.cache-hit != 'true'
+        run: bunx playwright install --with-deps firefox
+
+      - name: Install Playwright deps (cached browsers)
+        if: steps.check.outputs.enabled == 'true' && steps.playwright-cache.outputs.cache-hit == 'true'
+        run: bunx playwright install-deps firefox
+
+      - name: Save Playwright cache
+        if: always() && steps.check.outputs.enabled == 'true' && steps.playwright-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}
+
+      - name: Run E2E tests
+        if: steps.check.outputs.enabled == 'true'
+        run: bun run test:e2e
+
+      - name: E2E report
+        if: always() && steps.check.outputs.enabled == 'true'
+        uses: daun/playwright-report-summary@v3
+        with:
+          report-file: test-results/results.json
+
+      - name: Upload E2E results
+        if: always() && steps.check.outputs.enabled == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-results
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [test, e2e]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build production image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: production
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

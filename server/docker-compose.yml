@@ -1,0 +1,22 @@
+services:
+  app:
+    build:
+      context: .
+      target: production
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      - PORT=3000
+    restart: unless-stopped
+
+  e2e:
+    build:
+      context: .
+      dockerfile: Dockerfile.e2e
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      - CI=true
+    profiles:
+      - testing
