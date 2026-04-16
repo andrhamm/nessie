@@ -1,7 +1,8 @@
 #!/usr/bin/env bun
 import * as p from "@clack/prompts";
-import { loadConfig } from "./config.ts";
 import { createServer } from "./server.ts";
+
+const DEFAULT_PORT = 3000;
 
 function printHelp(): void {
   console.log(`
@@ -17,8 +18,8 @@ Options:
 }
 
 function cmdServe(): void {
-  const config = loadConfig();
-  const server = createServer({ port: config.port });
+  const port = process.env.PORT ? Number(process.env.PORT) : DEFAULT_PORT;
+  const server = createServer({ port });
   p.log.success(`Server listening on http://localhost:${server.port}`);
 }
 

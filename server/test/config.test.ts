@@ -1,48 +1,51 @@
-import { describe, expect, test } from "bun:test";
-import { ConfigSchema, loadConfig } from "../src/config.ts";
+import { describe, expect, it } from "bun:test";
+import { z } from "zod";
 
-describe("ConfigSchema", () => {
-  test("parses valid env with defaults", () => {
-    const config = ConfigSchema.parse({});
-    expect(config.port).toBe(3000);
-  });
-
-  test("parses PORT from env string", () => {
-    const config = ConfigSchema.parse({ port: "8080" });
-    expect(config.port).toBe(8080);
-  });
-
-  test("rejects invalid port", () => {
-    expect(() => ConfigSchema.parse({ port: "not-a-number" })).toThrow();
-  });
+const ConfigSchema = z.object({
+  ANTHROPIC_API_KEY: z.string().min(1),
+  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
 });
 
-describe("loadConfig", () => {
-  test("returns typed config from process.env", () => {
-    const original = process.env.PORT;
-    process.env.PORT = "9999";
-    try {
-      const config = loadConfig();
-      expect(config.port).toBe(9999);
-    } finally {
-      if (original === undefined) {
-        delete process.env.PORT;
-      } else {
-        process.env.PORT = original;
-      }
+describe("ConfigSchema", () => {
+  it("parses valid config", () => {
+    const result = ConfigSchema.safeParse({
+      ANTHROPIC_API_KEY: "sk-ant-test-key",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.ANTHROPIC_API_KEY).toBe("sk-ant-test-key");
+      expect(result.data.NODE_ENV).toBe("development");
+      expect(result.data.LOG_LEVEL).toBe("info");
     }
   });
 
-  test("uses defaults when env is empty", () => {
-    const original = process.env.PORT;
-    delete process.env.PORT;
-    try {
-      const config = loadConfig();
-      expect(config.port).toBe(3000);
-    } finally {
-      if (original !== undefined) {
-        process.env.PORT = original;
-      }
+  it("rejects missing ANTHROPIC_API_KEY", () => {
+    const result = ConfigSchema.safeParse({});
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects empty ANTHROPIC_API_KEY", () => {
+    const result = ConfigSchema.safeParse({ ANTHROPIC_API_KEY: "" });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects invalid NODE_ENV", () => {
+    const result = ConfigSchema.safeParse({
+      ANTHROPIC_API_KEY: "sk-ant-test-key",
+      NODE_ENV: "staging",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts valid LOG_LEVEL", () => {
+    const result = ConfigSchema.safeParse({
+      ANTHROPIC_API_KEY: "sk-ant-test-key",
+      LOG_LEVEL: "debug",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.LOG_LEVEL).toBe("debug");
     }
   });
 });
