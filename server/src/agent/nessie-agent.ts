@@ -103,16 +103,16 @@ export class NessieAgent {
       },
     });
 
-    // Stream text to console as it arrives
+    // Stream text to console as it arrives, collecting the full text
+    let rawText = "";
     process.stdout.write("[NessieAgent] streaming: ");
     for await (const chunk of stream.textStream) {
       process.stdout.write(chunk);
+      rawText += chunk;
     }
     process.stdout.write("\n");
 
-    // Get the final complete result
-    const result = await stream.response;
-    const rawText = (await stream.text).trim();
+    rawText = rawText.trim();
     if (!rawText) {
       console.error("[NessieAgent] Empty text response from model");
       return getSafeFallback();
