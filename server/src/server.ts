@@ -82,11 +82,14 @@ export function createServer(options: ServerOptions) {
       const url = new URL(req.url);
       const t0 = performance.now();
 
-      // Skip logging for static files and polls
-      const isApi = url.pathname.startsWith("/v1/");
-      if (isApi) {
+      // Log API requests (skip polls and static files)
+      const isPost = req.method === "POST";
+      const isAudioFetch =
+        url.pathname.includes("/input_audio") || url.pathname.includes("/response_audio");
+      if (isPost || isAudioFetch) {
         const size = req.headers.get("Content-Length") ?? "-";
-        console.log(`[HTTP] ${req.method} ${url.pathname} (${size} bytes)`);
+        const deviceId = req.headers.get("X-Device-Id") ?? "";
+        console.log(`[HTTP] ${req.method} ${url.pathname} ${size}B device=${deviceId}`);
       }
 
       // Health check
