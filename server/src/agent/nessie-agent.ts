@@ -1,4 +1,4 @@
-import { type LanguageModel, type ModelMessage, type streamText, tool } from "ai";
+import { type LanguageModel, type ModelMessage, stepCountIs, type streamText, tool } from "ai";
 import { z } from "zod";
 import { getSafeFallback, SANITIZED_INPUT_MESSAGE } from "../moderation/fallbacks";
 import { type InputScreenDeps, screenInput } from "../moderation/input-screen";
@@ -80,6 +80,7 @@ export class NessieAgent {
       model: this.model,
       system: systemPrompt,
       messages: [...messages, { role: "user" as const, content: userMessage }],
+      stopWhen: stepCountIs(5),
       tools: {
         recall_memory: tool({
           description: "Search memories for relevant context about a speaker or topic",
