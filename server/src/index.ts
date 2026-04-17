@@ -26,6 +26,7 @@ async function cmdServe(): Promise<void> {
   const { InMemoryStore } = await import("./agent/memory-inmemory");
   const { NessieAgent } = await import("./agent/nessie-agent");
   const { SpeechStore } = await import("./speech/store");
+  const { SubprocessTranscriberClient } = await import("./speech/transcriber-client");
   const { config } = await import("./config");
 
   const model = anthropic("claude-haiku-4-5");
@@ -46,6 +47,10 @@ async function cmdServe(): Promise<void> {
 
   const speechStore = new SpeechStore();
 
+  // Project root is one level up from the server directory (where uv.lock lives)
+  const projectRoot = new URL("../../", import.meta.url).pathname.replace(/\/$/, "");
+  const transcriber = new SubprocessTranscriberClient(projectRoot);
+
   const port = process.env.PORT ? Number(process.env.PORT) : DEFAULT_PORT;
   const server = createServer({
     port,
@@ -56,6 +61,7 @@ async function cmdServe(): Promise<void> {
       ttsConfig: {
         voiceId: config.NESSIE_VOICE_ID,
       },
+      transcriber,
     },
   });
 

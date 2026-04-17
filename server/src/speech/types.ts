@@ -20,6 +20,7 @@ export type SpeechStatus = z.infer<typeof SpeechStatusSchema>;
 /**
  * POST /v1/speech request body.
  * For v1, the browser sends a text transcript (not audio).
+ * For v2 (AudioWorklet), the body is raw PCM bytes with X-Device-Id header.
  */
 export const SpeechRequestSchema = z.object({
   device_id: z.string().min(1),
@@ -58,6 +59,10 @@ export interface SpeechState {
   status: SpeechStatus;
   device_id: string;
   created_at: number;
+  /** Raw PCM bytes from the client (set before transcription). */
+  inputAudio?: Uint8Array;
+  /** Transcript produced by server-side transcription or sent directly by client. */
+  inputTranscript?: string;
   input: SpeechInputData | null;
   response: SpeechResponseData | null;
   response_audio: Uint8Array | null;

@@ -4,6 +4,7 @@ import type { AgentInput, AgentOutput } from "../src/agent/schemas";
 import { createServer } from "../src/server.ts";
 import type { RouteDeps } from "../src/speech/routes";
 import { SpeechStore } from "../src/speech/store";
+import { MockTranscriberClient } from "../src/speech/transcriber-client";
 import type { TtsClient, TtsConfig } from "../src/tts/elevenlabs";
 
 const MOCK_AGENT_OUTPUT: AgentOutput = {
@@ -27,6 +28,7 @@ function createTestDeps(): RouteDeps {
       },
     } as TtsClient,
     ttsConfig: { voiceId: "test-voice" } as TtsConfig,
+    transcriber: new MockTranscriberClient("hello"),
   };
 }
 

@@ -23,7 +23,7 @@ export class SpeechStore {
 
   /**
    * Create a new speech request entry in "transcribed" state.
-   * For v1, the transcript arrives with the POST body so we skip "received".
+   * For v1 (browser STT), the transcript arrives with the POST body so we skip "received".
    */
   create(deviceId: string, transcript: string, speaker: string): SpeechState {
     const id = generateSpeechId();
@@ -32,7 +32,29 @@ export class SpeechStore {
       status: "transcribed",
       device_id: deviceId,
       created_at: Date.now(),
+      inputTranscript: transcript,
       input: { transcript, speaker },
+      response: null,
+      response_audio: null,
+      error: null,
+    };
+    this.entries.set(id, state);
+    return state;
+  }
+
+  /**
+   * Create a new speech request entry in "received" state from raw PCM audio.
+   * The pipeline will transcribe the audio before responding.
+   */
+  createFromAudio(deviceId: string, pcmBytes: Uint8Array): SpeechState {
+    const id = generateSpeechId();
+    const state: SpeechState = {
+      id,
+      status: "received",
+      device_id: deviceId,
+      created_at: Date.now(),
+      inputAudio: pcmBytes,
+      input: null,
       response: null,
       response_audio: null,
       error: null,

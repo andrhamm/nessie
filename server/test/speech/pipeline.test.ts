@@ -5,6 +5,7 @@ import type { AgentInput, AgentOutput } from "../../src/agent/schemas";
 import type { PipelineDeps } from "../../src/speech/pipeline";
 import { runPipeline } from "../../src/speech/pipeline";
 import { SpeechStore } from "../../src/speech/store";
+import { MockTranscriberClient } from "../../src/speech/transcriber-client";
 import type { TtsClient, TtsConfig } from "../../src/tts/elevenlabs";
 
 const MOCK_AGENT_OUTPUT: AgentOutput = {
@@ -66,6 +67,7 @@ describe("runPipeline", () => {
       ttsClient: createMockTtsClient(),
       ttsConfig: TTS_CONFIG,
       store,
+      transcriber: new MockTranscriberClient("let's play pirates"),
     };
   });
 
@@ -201,5 +203,46 @@ describe("runPipeline", () => {
     expect(captured.input?.speaker.age).toBe(6);
     expect(captured.input?.speaker.id).toBe("SPEAKER_0");
     expect(captured.input?.text).toBe("hello nessie");
+  });
+
+  it("transcribes PCM audio when status is received", async () => {
+    deps.transcriber = new MockTranscriberClient("hello from audio");
+    const pcmBytes = new Uint8Array([0x00, 0x01, 0x02, 0x03]);
+    const state = store.createFromAudio("web-001", pcmBytes);
+
+    expect(state.status).toBe("received");
+
+    await runPipeline(deps, state.id, "Alex", 6);
+
+    const result = store.get(state.id);
+    expect(result?.status).toBe("complete");
+    expect(result?.inputTranscript).toBe("hello from audio");
+    expect(result?.input?.transcript).toBe("hello from audio");
+  });
+
+  it("sets error when audio body is missing", async () => {
+    const state = store.createFromAudio("web-001", new Uint8Array(0));
+    await runPipeline(deps, state.id, "Alex", 6);
+
+    const result = store.get(state.id);
+    expect(result?.status).toBe("error");
+    expect(result?.error).toBe("No audio data available");
+  });
+
+  it("sets error when transcriber fails", async () => {
+    const failingTranscriber = {
+      transcribe: async (_bytes: Uint8Array): Promise<string> => {
+        throw new Error("Whisper unavailable");
+      },
+    };
+    deps.transcriber = failingTranscriber;
+
+    const pcmBytes = new Uint8Array([0x00, 0x01]);
+    const state = store.createFromAudio("web-001", pcmBytes);
+    await runPipeline(deps, state.id, "Alex", 6);
+
+    const result = store.get(state.id);
+    expect(result?.status).toBe("error");
+    expect(result?.error).toBe("Whisper unavailable");
   });
 });

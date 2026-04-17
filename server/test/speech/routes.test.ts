@@ -10,6 +10,7 @@ import {
   type RouteDeps,
 } from "../../src/speech/routes";
 import { SpeechStore } from "../../src/speech/store";
+import { MockTranscriberClient } from "../../src/speech/transcriber-client";
 import type { TtsClient, TtsConfig } from "../../src/tts/elevenlabs";
 
 const MOCK_AGENT_OUTPUT: AgentOutput = {
@@ -37,7 +38,10 @@ function createMockTtsClient(): TtsClient {
 
 const TTS_CONFIG: TtsConfig = { voiceId: "test-voice" };
 
-describe("handleSpeechCreate", () => {
+// Minimal PCM bytes for binary POST tests (a few Int16 samples at 16kHz)
+const SAMPLE_PCM = new Uint8Array([0x00, 0x00, 0x10, 0x00, 0x20, 0x00]);
+
+describe("handleSpeechCreate — JSON mode", () => {
   let deps: RouteDeps;
 
   beforeEach(() => {
@@ -46,6 +50,7 @@ describe("handleSpeechCreate", () => {
       agent: createMockAgent(),
       ttsClient: createMockTtsClient(),
       ttsConfig: TTS_CONFIG,
+      transcriber: new MockTranscriberClient("hello nessie"),
     };
   });
 
@@ -62,7 +67,7 @@ describe("handleSpeechCreate", () => {
     expect(body.id).toMatch(/^sp_[0-9a-f]{12}$/);
   });
 
-  it("creates entry in store", async () => {
+  it("creates entry in store with transcript", async () => {
     const req = new Request("http://localhost/v1/speech", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -147,6 +152,102 @@ describe("handleSpeechCreate", () => {
   });
 });
 
+describe("handleSpeechCreate — binary PCM mode", () => {
+  let deps: RouteDeps;
+
+  beforeEach(() => {
+    deps = {
+      store: new SpeechStore(),
+      agent: createMockAgent(),
+      ttsClient: createMockTtsClient(),
+      ttsConfig: TTS_CONFIG,
+      transcriber: new MockTranscriberClient("hello from audio"),
+    };
+  });
+
+  it("returns 201 with speech ID for binary body", async () => {
+    const req = new Request("http://localhost/v1/speech", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/octet-stream",
+        "X-Device-Id": "hw-001",
+      },
+      body: SAMPLE_PCM,
+    });
+
+    const res = await handleSpeechCreate(req, deps);
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as { id: string };
+    expect(body.id).toMatch(/^sp_[0-9a-f]{12}$/);
+  });
+
+  it("stores PCM bytes in state", async () => {
+    // Use a transcriber that never resolves so the pipeline stays in "received"
+    // while we inspect the initial state.
+    const latch: { fn: ((t: string) => void) | null } = { fn: null };
+    deps.transcriber = {
+      transcribe: (_bytes: Uint8Array) =>
+        new Promise<string>((resolve) => {
+          latch.fn = resolve;
+        }),
+    };
+
+    const req = new Request("http://localhost/v1/speech", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/octet-stream",
+        "X-Device-Id": "hw-001",
+      },
+      body: SAMPLE_PCM,
+    });
+
+    const res = await handleSpeechCreate(req, deps);
+    const body = (await res.json()) as { id: string };
+    const state = deps.store.get(body.id);
+    expect(state).toBeDefined();
+    expect(state?.inputAudio).toEqual(SAMPLE_PCM);
+    expect(state?.status).toBe("received");
+
+    // Unblock the pipeline to avoid resource leaks in test
+    latch.fn?.("hello");
+  });
+
+  it("returns 400 when X-Device-Id header is missing", async () => {
+    const req = new Request("http://localhost/v1/speech", {
+      method: "POST",
+      headers: { "Content-Type": "application/octet-stream" },
+      body: SAMPLE_PCM,
+    });
+
+    const res = await handleSpeechCreate(req, deps);
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toBe("X-Device-Id header is required");
+  });
+
+  it("returns 400 when body is empty", async () => {
+    const req = new Request("http://localhost/v1/speech", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/octet-stream",
+        "X-Device-Id": "hw-001",
+      },
+      body: new Uint8Array(0),
+    });
+
+    const res = await handleSpeechCreate(req, deps);
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toBe("audio body is empty");
+  });
+
+  it("returns 405 for non-POST (binary mode)", async () => {
+    const req = new Request("http://localhost/v1/speech", { method: "GET" });
+    const res = await handleSpeechCreate(req, deps);
+    expect(res.status).toBe(405);
+  });
+});
+
 describe("handleSpeechGet", () => {
   let deps: RouteDeps;
 
@@ -156,6 +257,7 @@ describe("handleSpeechGet", () => {
       agent: createMockAgent(),
       ttsClient: createMockTtsClient(),
       ttsConfig: TTS_CONFIG,
+      transcriber: new MockTranscriberClient(),
     };
   });
 
@@ -227,13 +329,8 @@ describe("handleSpeechInputAudio", () => {
       agent: createMockAgent(),
       ttsClient: createMockTtsClient(),
       ttsConfig: TTS_CONFIG,
+      transcriber: new MockTranscriberClient(),
     };
-  });
-
-  it("returns 404 for any ID (browser STT has no server-side input audio)", () => {
-    const state = deps.store.create("web-001", "hello", "SPEAKER_0");
-    const res = handleSpeechInputAudio(state.id, deps);
-    expect(res.status).toBe(404);
   });
 
   it("returns 404 for unknown ID", () => {
@@ -241,10 +338,36 @@ describe("handleSpeechInputAudio", () => {
     expect(res.status).toBe(404);
   });
 
-  it("returns descriptive error message", async () => {
-    const res = handleSpeechInputAudio("sp_anything", deps);
-    const body = (await res.json()) as { error: string };
-    expect(body.error).toBe("input audio not available");
+  it("returns 404 when created via JSON path (no input audio stored)", () => {
+    const state = deps.store.create("web-001", "hello", "SPEAKER_0");
+    const res = handleSpeechInputAudio(state.id, deps);
+    expect(res.status).toBe(404);
+    // The JSON path doesn't store PCM audio
+  });
+
+  it("returns stored PCM bytes for binary POST requests", async () => {
+    const pcmBytes = new Uint8Array([0x01, 0x02, 0x03, 0x04]);
+    const state = deps.store.createFromAudio("hw-001", pcmBytes);
+
+    const res = handleSpeechInputAudio(state.id, deps);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toBe("audio/L16;rate=16000");
+    expect(res.headers.get("Content-Length")).toBe("4");
+
+    const body = new Uint8Array(await res.arrayBuffer());
+    expect(body).toEqual(pcmBytes);
+  });
+
+  it("returns 404 for audio path with empty buffer", () => {
+    // Edge case: createFromAudio with empty bytes shouldn't normally happen,
+    // but if state.inputAudio is empty, return 404
+    const state = deps.store.createFromAudio("hw-001", new Uint8Array([0x01]));
+    const entry = deps.store.get(state.id);
+    if (entry) {
+      entry.inputAudio = new Uint8Array(0);
+    }
+    const res = handleSpeechInputAudio(state.id, deps);
+    expect(res.status).toBe(404);
   });
 });
 
@@ -257,6 +380,7 @@ describe("handleSpeechResponseAudio", () => {
       agent: createMockAgent(),
       ttsClient: createMockTtsClient(),
       ttsConfig: TTS_CONFIG,
+      transcriber: new MockTranscriberClient(),
     };
   });
 
