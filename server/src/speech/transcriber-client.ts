@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
+import { z } from "zod";
 
 /**
  * Abstraction over the speech-to-text transcription backend.
@@ -10,27 +11,35 @@ export interface TranscriberClient {
 }
 
 /**
- * JSONL message shapes for the subprocess protocol.
+ * Zod schemas for the subprocess JSONL protocol.
  */
+const ReadyMessageSchema = z.object({
+  type: z.literal("ready"),
+});
+
+const TranscriptMessageSchema = z.object({
+  type: z.literal("transcript"),
+  id: z.string(),
+  text: z.string(),
+});
+
+const ErrorMessageSchema = z.object({
+  type: z.literal("error"),
+  id: z.string(),
+  message: z.string(),
+});
+
+const SubprocessMessageSchema = z.discriminatedUnion("type", [
+  ReadyMessageSchema,
+  TranscriptMessageSchema,
+  ErrorMessageSchema,
+]);
+
 interface TranscribeRequest {
   type: "transcribe";
   id: string;
   pcm_base64: string;
 }
-
-interface TranscribeResponse {
-  type: "result";
-  id: string;
-  transcript: string;
-}
-
-interface TranscribeError {
-  type: "error";
-  id: string;
-  message: string;
-}
-
-type SubprocessResponse = TranscribeResponse | TranscribeError;
 
 /**
  * Transcriber that spawns `uv run python3 pipeline/src/transcriber.py` and communicates
@@ -86,41 +95,41 @@ export class SubprocessTranscriberClient implements TranscriberClient {
           return;
         }
 
-        // Parse the first complete JSONL line from stdout
-        const line = stdout.split("\n").find((l) => l.trim().length > 0);
-        if (!line) {
+        // Parse all JSONL lines, skip "ready", find our response by id
+        const lines = stdout.split("\n").filter((l) => l.trim().length > 0);
+
+        if (lines.length === 0) {
           reject(new Error("Transcriber returned no output"));
           return;
         }
 
-        let parsed: SubprocessResponse;
-        try {
-          parsed = JSON.parse(line) as SubprocessResponse;
-        } catch {
-          reject(new Error(`Transcriber returned invalid JSON: ${line}`));
-          return;
+        for (const line of lines) {
+          let json: unknown;
+          try {
+            json = JSON.parse(line);
+          } catch {
+            continue;
+          }
+
+          const result = SubprocessMessageSchema.safeParse(json);
+          if (!result.success) continue;
+
+          const parsed = result.data;
+
+          if (parsed.type === "ready") continue;
+
+          if (parsed.type === "error" && parsed.id === id) {
+            reject(new Error(`Transcriber error: ${parsed.message}`));
+            return;
+          }
+
+          if (parsed.type === "transcript" && parsed.id === id) {
+            resolve(parsed.text);
+            return;
+          }
         }
 
-        if (parsed.id !== id) {
-          reject(new Error(`Transcriber response ID mismatch: expected ${id}, got ${parsed.id}`));
-          return;
-        }
-
-        if (parsed.type === "error") {
-          reject(new Error(`Transcriber error: ${parsed.message}`));
-          return;
-        }
-
-        if (parsed.type === "result") {
-          resolve(parsed.transcript);
-          return;
-        }
-
-        reject(
-          new Error(
-            `Unexpected transcriber response type: ${String((parsed as SubprocessResponse).type)}`,
-          ),
-        );
+        reject(new Error("Transcriber returned no matching response"));
       });
 
       // Send the request and close stdin to signal EOF
