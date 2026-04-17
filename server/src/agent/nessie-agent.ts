@@ -1,4 +1,4 @@
-import { type generateText, type LanguageModel, tool } from "ai";
+import { type LanguageModel, type streamText, tool } from "ai";
 import { z } from "zod";
 import { getSafeFallback, SANITIZED_INPUT_MESSAGE } from "../moderation/fallbacks";
 import { type InputScreenDeps, screenInput } from "../moderation/input-screen";
@@ -21,7 +21,7 @@ export interface NessieAgentConfig {
 }
 
 export interface NessieAgentDeps {
-  generateText: typeof generateText;
+  streamText: typeof streamText;
 }
 
 export class NessieAgent {
@@ -48,7 +48,7 @@ export class NessieAgent {
     // Layer 1: Input screening
     if (this.enableInputScreening) {
       const screenDeps: InputScreenDeps = {
-        generateText: this.deps.generateText,
+        streamText: this.deps.streamText,
         model: this.moderationModel,
       };
       const screenResult = await screenInput(effectiveInput.text, screenDeps);
@@ -77,8 +77,8 @@ export class NessieAgent {
       effectiveInput.ambient,
     );
 
-    // Layer 2: Call the agent
-    const result = await this.deps.generateText({
+    // Layer 2: Call the agent with streaming
+    const stream = this.deps.streamText({
       model: this.model,
       system: systemPrompt,
       messages: [...messages, { role: "user" as const, content: userMessage }],
@@ -105,8 +105,16 @@ export class NessieAgent {
       },
     });
 
-    // Parse the text response as JSON and validate with Zod
-    const rawText = result.text.trim();
+    // Stream text to console as it arrives
+    process.stdout.write("[NessieAgent] streaming: ");
+    for await (const chunk of stream.textStream) {
+      process.stdout.write(chunk);
+    }
+    process.stdout.write("\n");
+
+    // Get the final complete result
+    const result = await stream.response;
+    const rawText = (await stream.text).trim();
     if (!rawText) {
       console.error("[NessieAgent] Empty text response from model");
       return getSafeFallback();

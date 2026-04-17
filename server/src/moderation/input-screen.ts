@@ -1,4 +1,4 @@
-import type { generateText, LanguageModel } from "ai";
+import type { LanguageModel, streamText } from "ai";
 import { z } from "zod";
 import { formatCategoriesForPrompt } from "./categories";
 
@@ -27,17 +27,19 @@ Respond with ONLY a JSON object with these fields:
 - reasoning: brief explanation`;
 
 export interface InputScreenDeps {
-  generateText: typeof generateText;
+  streamText: typeof streamText;
   model: LanguageModel;
 }
 
 export async function screenInput(text: string, deps: InputScreenDeps): Promise<InputScreenResult> {
-  const { text: responseText } = await deps.generateText({
+  const stream = deps.streamText({
     model: deps.model,
     system: INPUT_SCREEN_PROMPT,
     prompt: `Evaluate this child's speech:\n\n"${text}"`,
     temperature: 0,
   });
+
+  const responseText = await stream.text;
 
   const jsonMatch = responseText.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {

@@ -21,7 +21,7 @@ Options:
 
 async function cmdServe(): Promise<void> {
   const { anthropic } = await import("@ai-sdk/anthropic");
-  const { generateText } = await import("ai");
+  const { streamText } = await import("ai");
   const { ElevenLabsClient } = await import("elevenlabs");
   const { InMemoryStore } = await import("./agent/memory-inmemory");
   const { NessieAgent } = await import("./agent/nessie-agent");
@@ -38,7 +38,7 @@ async function cmdServe(): Promise<void> {
       enableInputScreening: true,
       enableOutputCheck: true,
     },
-    { generateText },
+    { streamText },
   );
 
   const ttsClient = new ElevenLabsClient({

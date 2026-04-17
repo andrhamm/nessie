@@ -1,6 +1,6 @@
 import { anthropic } from "@ai-sdk/anthropic";
 import * as p from "@clack/prompts";
-import { generateText } from "ai";
+import { streamText } from "ai";
 import { InMemoryStore } from "../agent/memory-inmemory";
 import { NessieAgent } from "../agent/nessie-agent";
 import type { AgentInput } from "../agent/schemas";
@@ -56,7 +56,7 @@ export async function runChat(): Promise<void> {
       enableInputScreening: true,
       enableOutputCheck: true,
     },
-    { generateText },
+    { streamText },
   );
 
   const deviceId = "cli-dev";

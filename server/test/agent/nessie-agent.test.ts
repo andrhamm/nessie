@@ -31,92 +31,51 @@ function makeAgentOutput(overrides: Partial<AgentOutput> = {}): AgentOutput {
 }
 
 /**
+ * Create a mock streamText result that resolves to the given text.
+ */
+function mockStreamResult(responseText: string) {
+  async function* textStreamGen() {
+    yield responseText;
+  }
+  return {
+    text: Promise.resolve(responseText),
+    textStream: textStreamGen(),
+    response: Promise.resolve({
+      id: "test",
+      timestamp: new Date(),
+      modelId: "test",
+      headers: {},
+      messages: [],
+    }),
+  };
+}
+
+/**
  * Create mock deps.
  *
- * The mock distinguishes between the input-screening call (which has `prompt` but no `output`
- * in the call options) and the agent call (which has `output` set).
+ * The mock distinguishes between the input-screening call (which has `prompt` but no `tools`)
+ * and the agent call (which has `tools`).
  */
 function createMockDeps(agentOutput: AgentOutput, inputScreenResponse?: string): NessieAgentDeps {
-  const mockGenerateText = async (options: Record<string, unknown>) => {
+  const mockStreamText = (options: Record<string, unknown>) => {
     const isScreeningCall = !("tools" in options);
 
     if (isScreeningCall) {
-      const responseText =
+      const text =
         inputScreenResponse ??
         JSON.stringify({
           risk_level: 0,
           category: "none",
           reasoning: "Safe input",
         });
-      return {
-        text: responseText,
-        output: undefined,
-        reasoning: [],
-        reasoningText: undefined,
-        files: [],
-        sources: [],
-        toolCalls: [],
-        staticToolCalls: [],
-        dynamicToolCalls: [],
-        toolResults: [],
-        staticToolResults: [],
-        dynamicToolResults: [],
-        finishReason: "stop" as const,
-        rawFinishReason: undefined,
-        usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
-        totalUsage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
-        warnings: undefined,
-        request: { body: "" },
-        response: {
-          id: "test",
-          timestamp: new Date(),
-          modelId: "test",
-          headers: {},
-          messages: [],
-        },
-        providerMetadata: undefined,
-        steps: [],
-        experimental_output: undefined,
-        content: [],
-      };
+      return mockStreamResult(text);
     }
 
-    // Agent call — return structured output
-    return {
-      text: JSON.stringify(agentOutput),
-      output: agentOutput,
-      reasoning: [],
-      reasoningText: undefined,
-      files: [],
-      sources: [],
-      toolCalls: [],
-      staticToolCalls: [],
-      dynamicToolCalls: [],
-      toolResults: [],
-      staticToolResults: [],
-      dynamicToolResults: [],
-      finishReason: "stop" as const,
-      rawFinishReason: undefined,
-      usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
-      totalUsage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
-      warnings: undefined,
-      request: { body: "" },
-      response: {
-        id: "test",
-        timestamp: new Date(),
-        modelId: "test",
-        headers: {},
-        messages: [],
-      },
-      providerMetadata: undefined,
-      steps: [],
-      experimental_output: agentOutput,
-      content: [],
-    };
+    return mockStreamResult(JSON.stringify(agentOutput));
   };
 
   return {
-    generateText: mockGenerateText as unknown as NessieAgentDeps["generateText"],
+    streamText: mockStreamText as unknown as NessieAgentDeps["streamText"],
   };
 }
 

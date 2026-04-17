@@ -3,28 +3,11 @@ import { type InputScreenDeps, screenInput } from "../../src/moderation/input-sc
 
 function createMockDeps(responseText: string): InputScreenDeps {
   return {
-    generateText: async () => ({
-      text: responseText,
-      reasoning: undefined,
-      reasoningDetails: [],
-      sources: [],
-      files: [],
-      toolCalls: [],
-      toolResults: [],
-      finishReason: "stop" as const,
-      usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
-      steps: [],
-      request: { body: "" },
-      response: {
-        id: "test",
-        timestamp: new Date(),
-        modelId: "test",
-        headers: {},
-        body: undefined,
-      },
-      providerMetadata: {},
-      experimental_providerMetadata: {},
-      toJsonResponse: () => new Response(),
+    streamText: () => ({
+      text: Promise.resolve(responseText),
+      textStream: (async function* () {
+        yield responseText;
+      })(),
     }),
     model: "anthropic/claude-haiku-4-5",
   } as unknown as InputScreenDeps;
