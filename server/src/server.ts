@@ -80,6 +80,14 @@ export function createServer(options: ServerOptions) {
     port: options.port,
     async fetch(req) {
       const url = new URL(req.url);
+      const t0 = performance.now();
+
+      // Skip logging for static files and polls
+      const isApi = url.pathname.startsWith("/v1/");
+      if (isApi) {
+        const size = req.headers.get("Content-Length") ?? "-";
+        console.log(`[HTTP] ${req.method} ${url.pathname} (${size} bytes)`);
+      }
 
       // Health check
       if (url.pathname === "/health") {

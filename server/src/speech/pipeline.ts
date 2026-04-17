@@ -44,6 +44,14 @@ export async function runPipeline(
   }
 
   try {
+    const t0 = performance.now();
+    const log = (stage: string, detail?: string) => {
+      const elapsed = Math.round(performance.now() - t0);
+      console.log(`[Pipeline ${speechId}] ${elapsed}ms — ${stage}${detail ? `: ${detail}` : ""}`);
+    };
+
+    log("start", `device=${state.device_id} speaker=${speakerName} age=${speakerAge}`);
+
     // Stage 1: Transcribe PCM audio if we're in "received" status
     if (state.status === "received") {
       if (!state.inputAudio || state.inputAudio.length === 0) {
@@ -51,7 +59,13 @@ export async function runPipeline(
         return;
       }
 
+      const audioSizeKb = Math.round(state.inputAudio.length / 1024);
+      const durationSec = (state.inputAudio.length / 2 / 16000).toFixed(1);
+      log("transcribing", `${audioSizeKb}KB PCM (~${durationSec}s audio)`);
+
       const transcript = await transcriber.transcribe(state.inputAudio);
+
+      log("transcribed", `"${transcript}"`);
 
       // Populate input data and advance status
       const entry = store.get(speechId);
@@ -75,6 +89,7 @@ export async function runPipeline(
 
     // Stage 2: Mark as responding
     store.setStatus(speechId, "responding");
+    log("agent", `input: "${currentState.input.transcript}"`);
 
     // Stage 3: Build agent input and call the agent
     const agentInput: AgentInput = {
@@ -92,11 +107,22 @@ export async function runPipeline(
 
     const agentOutput = await agent.respond(agentInput);
 
+    log(
+      "agent done",
+      `speech=${agentOutput.speech.length} chars, led=${agentOutput.led_color} ${agentOutput.led_mode}`,
+    );
+    if (agentOutput.save_memory) {
+      log("memory", `saving: "${agentOutput.save_memory}" about ${agentOutput.memory_speaker}`);
+    }
+
     // Stage 4: Generate TTS audio (skip if no speech)
-    // eslint-disable-next-line prefer-const
     let audioBuffer: Uint8Array = new Uint8Array(0);
     if (agentOutput.speech.trim()) {
+      log("tts", `generating audio for ${stripTags(agentOutput.speech).length} chars`);
       audioBuffer = await synthesize(ttsClient, ttsConfig, agentOutput.speech);
+      log("tts done", `${Math.round(audioBuffer.length / 1024)}KB audio`);
+    } else {
+      log("tts", "skipped (empty speech)");
     }
 
     // Stage 5: Store the complete response
@@ -113,8 +139,11 @@ export async function runPipeline(
       },
       audioBuffer,
     );
+
+    log("complete", `total pipeline done`);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    console.error(`[Pipeline ${speechId}] ERROR: ${message}`);
     store.setError(speechId, message);
   }
 }
