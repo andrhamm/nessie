@@ -124,6 +124,19 @@ Waveshare provides an official library for connecting ESP32 boards to cloud AI f
 
 This library demonstrates the exact audio-to-cloud-AI-and-back pattern that Nessie needs, though we'll be using a local server rather than cloud APIs directly from the device.
 
+### WiFi Stability Risk (ESP-Hosted via SDIO)
+
+The ESP32-P4 has no built-in WiFi. It relies on the ESP32-C6 companion chip via SDIO using `esp-hosted-mcu`. **Multiple users report stability issues as of early 2026:**
+
+- WiFi association failing/looping with "Disconnected... reason: Association Leave" — [esphome#10956](https://github.com/esphome/esphome/issues/10956)
+- Intermittent connectivity, WiFi only connects sporadically — [esphome#13636](https://github.com/esphome/esphome/issues/13636)
+- SDIO RX queue overflow during association causing packet loss — [ESP32 Forum](https://esp32.com/viewtopic.php?t=47208)
+- Firmware version mismatches between host and co-processor — [arduino-esp32#11404](https://github.com/espressif/arduino-esp32/issues/11404)
+
+**Impact on Nessie:** Any networking protocol (WebSocket, HTTP, MQTT) goes through this same SDIO path. Persistent connections (WebSocket) may be particularly fragile. Short-lived HTTP requests are more resilient to intermittent drops.
+
+**Mitigation:** Design the client-server protocol to be tolerant of disconnects. Start with simple HTTP POST+poll. Revisit when esp-hosted matures or when testing on actual hardware.
+
 ### Unverified / Needs Investigation
 
 - [ ] Exact onboard microphone part number (MEMS? electret? — schematic shows differential MIC_P/MIC_N connected to ES8311)
