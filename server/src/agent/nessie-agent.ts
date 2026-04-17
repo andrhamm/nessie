@@ -1,4 +1,4 @@
-import { type generateText, type LanguageModel, Output, tool } from "ai";
+import { type generateText, type LanguageModel, tool } from "ai";
 import { z } from "zod";
 import { getSafeFallback, SANITIZED_INPUT_MESSAGE } from "../moderation/fallbacks";
 import { type InputScreenDeps, screenInput } from "../moderation/input-screen";
@@ -77,12 +77,11 @@ export class NessieAgent {
       effectiveInput.ambient,
     );
 
-    // Layer 2: Call the agent with structured output
+    // Layer 2: Call the agent
     const result = await this.deps.generateText({
       model: this.model,
       system: systemPrompt,
       messages: [...messages, { role: "user" as const, content: userMessage }],
-      output: Output.object({ schema: AgentOutputSchema }),
       tools: {
         recall_memory: tool({
           description: "Search memories for relevant context about a speaker or topic",
@@ -96,13 +95,45 @@ export class NessieAgent {
           },
         }),
       },
+      onStepFinish: ({ text, toolCalls, finishReason, usage }) => {
+        console.log("[NessieAgent] step:", {
+          finishReason,
+          toolCalls: toolCalls?.length ?? 0,
+          textLength: text?.length ?? 0,
+          tokens: usage,
+        });
+      },
     });
 
-    const output = result.output;
-
-    if (!output) {
+    // Parse the text response as JSON and validate with Zod
+    const rawText = result.text.trim();
+    if (!rawText) {
+      console.error("[NessieAgent] Empty text response from model");
       return getSafeFallback();
     }
+
+    // Extract JSON from the response — model may wrap it in markdown code fences
+    let jsonStr = rawText;
+    const jsonMatch = rawText.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (jsonMatch && jsonMatch[1]) {
+      jsonStr = jsonMatch[1].trim();
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(jsonStr);
+    } catch {
+      console.error("[NessieAgent] Failed to parse JSON:", rawText.slice(0, 200));
+      return getSafeFallback();
+    }
+
+    const validated = AgentOutputSchema.safeParse(parsed);
+    if (!validated.success) {
+      console.error("[NessieAgent] Zod validation failed:", validated.error.issues);
+      return getSafeFallback();
+    }
+
+    const output = validated.data;
 
     // Layer 3: Output validation
     if (this.enableOutputCheck) {

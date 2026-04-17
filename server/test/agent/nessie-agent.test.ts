@@ -38,7 +38,7 @@ function makeAgentOutput(overrides: Partial<AgentOutput> = {}): AgentOutput {
  */
 function createMockDeps(agentOutput: AgentOutput, inputScreenResponse?: string): NessieAgentDeps {
   const mockGenerateText = async (options: Record<string, unknown>) => {
-    const isScreeningCall = !("output" in options);
+    const isScreeningCall = !("tools" in options);
 
     if (isScreeningCall) {
       const responseText =
