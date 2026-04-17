@@ -68,8 +68,9 @@ export class SubprocessTranscriberClient implements TranscriberClient {
     };
 
     return new Promise<string>((resolve, reject) => {
-      const child = spawn("uv", ["run", "python3", "pipeline/src/transcriber.py"], {
-        cwd: this.projectRoot,
+      const pipelineDir = `${this.projectRoot}/pipeline`;
+      const child = spawn("uv", ["run", "python3", "src/transcriber.py"], {
+        cwd: pipelineDir,
         stdio: ["pipe", "pipe", "pipe"],
       });
 
