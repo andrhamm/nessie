@@ -1,4 +1,4 @@
-import { type LanguageModel, type streamText, tool } from "ai";
+import { type LanguageModel, type ModelMessage, type streamText, tool } from "ai";
 import { z } from "zod";
 import { getSafeFallback, SANITIZED_INPUT_MESSAGE } from "../moderation/fallbacks";
 import { type InputScreenDeps, screenInput } from "../moderation/input-screen";
@@ -6,11 +6,6 @@ import { checkOutput } from "../moderation/output-check";
 import type { MemoryStore } from "./memory";
 import { buildSystemPrompt, formatUserMessage } from "./prompts";
 import { type AgentInput, type AgentOutput, AgentOutputSchema } from "./schemas";
-
-interface ConversationMessage {
-  role: "user" | "assistant";
-  content: string;
-}
 
 export interface NessieAgentConfig {
   model: LanguageModel;
@@ -25,7 +20,7 @@ export interface NessieAgentDeps {
 }
 
 export class NessieAgent {
-  private readonly sessions: Map<string, ConversationMessage[]> = new Map();
+  private readonly sessions: Map<string, ModelMessage[]> = new Map();
   private readonly memoryStore: MemoryStore;
   private readonly model: LanguageModel;
   private readonly moderationModel: LanguageModel;
@@ -65,6 +60,9 @@ export class NessieAgent {
 
     // Get or create session history
     const messages = this.getSession(effectiveInput.device_id);
+    console.log(
+      `[NessieAgent] session ${effectiveInput.device_id}: ${messages.length} messages in history`,
+    );
 
     // Build system prompt with speaker context
     const speakerContext = await this.memoryStore.getSpeakerContext(effectiveInput.device_id);
@@ -151,11 +149,9 @@ export class NessieAgent {
       }
     }
 
-    // Update session history
-    messages.push(
-      { role: "user", content: userMessage },
-      { role: "assistant", content: JSON.stringify(output) },
-    );
+    // Update session history using SDK's response messages
+    const responseMessages = (await stream.response).messages;
+    messages.push({ role: "user" as const, content: userMessage }, ...responseMessages);
 
     // Handle memory save
     if (output.save_memory) {
@@ -165,17 +161,17 @@ export class NessieAgent {
     return output;
   }
 
-  private getSession(deviceId: string): ConversationMessage[] {
+  private getSession(deviceId: string): ModelMessage[] {
     const existing = this.sessions.get(deviceId);
     if (existing) {
       return existing;
     }
-    const newSession: ConversationMessage[] = [];
+    const newSession: ModelMessage[] = [];
     this.sessions.set(deviceId, newSession);
     return newSession;
   }
 
-  endSession(deviceId: string): ConversationMessage[] | undefined {
+  endSession(deviceId: string): ModelMessage[] | undefined {
     const messages = this.sessions.get(deviceId);
     this.sessions.delete(deviceId);
     return messages;

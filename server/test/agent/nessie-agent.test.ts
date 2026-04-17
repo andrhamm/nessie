@@ -45,7 +45,7 @@ function mockStreamResult(responseText: string) {
       timestamp: new Date(),
       modelId: "test",
       headers: {},
-      messages: [],
+      messages: [{ role: "assistant" as const, content: responseText }],
     }),
   };
 }
