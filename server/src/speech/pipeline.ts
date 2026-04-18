@@ -1,5 +1,6 @@
 import type { NessieAgent } from "../agent/nessie-agent";
 import type { AgentInput } from "../agent/schemas";
+import { log as appLog, logError } from "../logger";
 import type { TtsClient, TtsConfig } from "../tts/elevenlabs";
 import { synthesize } from "../tts/elevenlabs";
 import { stripTags } from "../utils/speech";
@@ -47,7 +48,7 @@ export async function runPipeline(
     const t0 = performance.now();
     const log = (stage: string, detail?: string) => {
       const elapsed = Math.round(performance.now() - t0);
-      console.log(`[Pipeline ${speechId}] ${elapsed}ms — ${stage}${detail ? `: ${detail}` : ""}`);
+      appLog(`[Pipeline ${speechId}] ${elapsed}ms — ${stage}${detail ? `: ${detail}` : ""}`);
     };
 
     log("start", `device=${state.device_id} speaker=${speakerName} age=${speakerAge}`);
@@ -143,7 +144,7 @@ export async function runPipeline(
     log("complete", `total pipeline done`);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error(`[Pipeline ${speechId}] ERROR: ${message}`);
+    logError(`[Pipeline ${speechId}] ERROR: ${message}`);
     store.setError(speechId, message);
   }
 }

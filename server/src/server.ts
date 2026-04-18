@@ -1,5 +1,6 @@
 import { stat } from "node:fs/promises";
 import { extname, join, resolve } from "node:path";
+import { log } from "./logger";
 import type { RouteDeps } from "./speech/routes";
 import {
   handleSpeechCreate,
@@ -89,7 +90,7 @@ export function createServer(options: ServerOptions) {
       if (isPost || isAudioFetch) {
         const size = req.headers.get("Content-Length") ?? "-";
         const deviceId = req.headers.get("X-Device-Id") ?? "";
-        console.log(`[HTTP] ${req.method} ${url.pathname} ${size}B device=${deviceId}`);
+        log(`[HTTP] ${req.method} ${url.pathname} ${size}B device=${deviceId}`);
       }
 
       // Health check
