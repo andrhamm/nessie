@@ -1,4 +1,4 @@
-import { mkdtemp, stat, unlink } from "node:fs/promises";
+import { mkdtemp, rm, stat, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { EspeakSegment } from "./emotion-map";
@@ -35,6 +35,9 @@ function resolveVoice(base: string, variant: string | undefined): string {
 }
 
 export async function synth(opts: SynthOptions): Promise<SynthResult> {
+  if (opts.segments.length === 0) {
+    throw new Error("synth: opts.segments must not be empty");
+  }
   const sampleRate = opts.sampleRate ?? 22050;
   const tmp = await mkdtemp(join(tmpdir(), "nessie-espeak-"));
   const segTmp: string[] = [];
@@ -71,5 +74,6 @@ export async function synth(opts: SynthOptions): Promise<SynthResult> {
     return { outPath: opts.outPath, segmentTimingsMs, concatMs, totalMs, durationSec, bytes };
   } finally {
     await Promise.all(segTmp.map((p) => unlink(p).catch(() => {})));
+    await rm(tmp, { recursive: true, force: true }).catch(() => {});
   }
 }

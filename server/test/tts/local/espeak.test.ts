@@ -51,3 +51,11 @@ test.skipIf(!canRun)("synth swaps variant when voiceVariant is set", async () =>
   });
   expect(result.bytes).toBeGreaterThan(0);
 });
+
+test("synth throws on empty segments array", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "espeak-"));
+  const out = join(dir, "out.wav");
+  await expect(synth({ voice: "en+f3", segments: [], outPath: out })).rejects.toThrow(
+    "opts.segments must not be empty",
+  );
+});
