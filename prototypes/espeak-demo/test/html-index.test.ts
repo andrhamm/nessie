@@ -2,8 +2,8 @@ import { expect, test } from "bun:test";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { BenchReport, RunMetrics } from "../../../src/tts/local/bench";
-import { renderIndex } from "../../../src/tts/local/html-index";
+import type { BenchReport, RunMetrics } from "../src/bench";
+import { renderIndex } from "../src/html-index";
 
 const RM: RunMetrics = {
   synthMs: 100,

@@ -2,8 +2,8 @@ import { expect, test } from "bun:test";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { synth } from "../../../src/tts/local/espeak";
-import { hasBinary } from "../../../src/utils/has-binary";
+import { synth } from "../src/espeak";
+import { hasBinary } from "../src/has-binary";
 
 const canRun = hasBinary("espeak-ng") && hasBinary("sox");
 

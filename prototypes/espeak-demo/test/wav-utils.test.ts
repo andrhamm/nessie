@@ -2,8 +2,8 @@ import { expect, test } from "bun:test";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { getDurationSec } from "../../../src/tts/local/wav-utils";
-import { hasBinary } from "../../../src/utils/has-binary";
+import { hasBinary } from "../src/has-binary";
+import { getDurationSec } from "../src/wav-utils";
 
 const canRun = hasBinary("sox");
 

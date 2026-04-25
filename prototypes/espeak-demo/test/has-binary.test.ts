@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { hasBinary } from "../../src/utils/has-binary";
+import { hasBinary } from "../src/has-binary";
 
 test("hasBinary returns true for sh", () => {
   expect(hasBinary("sh")).toBe(true);

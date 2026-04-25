@@ -2,12 +2,7 @@ import { expect, test } from "bun:test";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import {
-  aggregate,
-  type BenchReport,
-  type RunMetrics,
-  writeReport,
-} from "../../../src/tts/local/bench";
+import { aggregate, type BenchReport, type RunMetrics, writeReport } from "../src/bench";
 
 test("aggregate computes mean/min/max across runs", () => {
   const runs: RunMetrics[] = [

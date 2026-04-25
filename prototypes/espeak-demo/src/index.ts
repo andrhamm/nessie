@@ -1,16 +1,11 @@
 #!/usr/bin/env bun
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import {
-  type BenchReport,
-  type CombinationStats,
-  runCombination,
-  writeReport,
-} from "../tts/local/bench";
-import { parseScript } from "../tts/local/emotion-map";
-import type { FxPreset } from "../tts/local/fx";
-import { renderIndex } from "../tts/local/html-index";
-import { hasBinary } from "../utils/has-binary";
+import { type BenchReport, type CombinationStats, runCombination, writeReport } from "./bench";
+import { parseScript } from "./emotion-map";
+import type { FxPreset } from "./fx";
+import { hasBinary } from "./has-binary";
+import { renderIndex } from "./html-index";
 
 const SAMPLE_SCRIPT = `[excited] Oh wow, a dragon! [gasps] Quick, hide behind the castle!
 [whispering] Shh, I think it's coming closer.
@@ -23,7 +18,7 @@ const SAMPLE_SCRIPT = `[excited] Oh wow, a dragon! [gasps] Quick, hide behind th
 const VOICES = ["en+f2", "en+f3", "en+f4", "en+f5", "en-us+f3", "en-us+f5"];
 const PRESETS: FxPreset[] = ["dry", "fairy", "magical", "sprite"];
 const RUNS = 3;
-const OUT_DIR = join(import.meta.dir, "../../local-voice-samples/espeak-ng");
+const OUT_DIR = join(import.meta.dir, "../local-voice-samples/espeak-ng");
 
 if (!hasBinary("espeak-ng") || !hasBinary("sox")) {
   console.error("Missing espeak-ng or sox. Install: brew install espeak-ng sox");

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { parseScript } from "../../../src/tts/local/emotion-map";
+import { parseScript } from "../src/emotion-map";
 
 const SCRIPT = `[excited] Oh wow, a dragon! [gasps] Quick, hide behind the castle!
 [whispering] Shh, I think it's coming closer.

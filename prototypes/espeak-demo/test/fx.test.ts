@@ -2,8 +2,8 @@ import { expect, test } from "bun:test";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { applyFx, type FxPreset } from "../../../src/tts/local/fx";
-import { hasBinary } from "../../../src/utils/has-binary";
+import { applyFx, type FxPreset } from "../src/fx";
+import { hasBinary } from "../src/has-binary";
 
 const canRun = hasBinary("sox");
 
