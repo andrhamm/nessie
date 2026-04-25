@@ -18,3 +18,4 @@ logs
 .env.keys
 .env
 logs/
+local-voice-samples/
