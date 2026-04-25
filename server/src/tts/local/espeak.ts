@@ -21,7 +21,7 @@ export interface SynthResult {
 }
 
 async function run(cmd: string[]): Promise<void> {
-  const proc = Bun.spawn(cmd, { stdout: "pipe", stderr: "pipe" });
+  const proc = Bun.spawn(cmd, { stdout: "ignore", stderr: "pipe" });
   const [stderr, code] = await Promise.all([new Response(proc.stderr).text(), proc.exited]);
   if (code !== 0) {
     throw new Error(`${cmd[0]} exited ${code}: ${stderr}`);

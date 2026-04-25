@@ -59,7 +59,7 @@ export async function applyFx(
     await copyFile(inPath, outPath);
   } else {
     const proc = Bun.spawn(["sox", inPath, outPath, ...CHAIN[preset]], {
-      stdout: "pipe",
+      stdout: "ignore",
       stderr: "pipe",
     });
     const [stderr, code] = await Promise.all([new Response(proc.stderr).text(), proc.exited]);
