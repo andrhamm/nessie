@@ -1,4 +1,4 @@
-import { mkdtemp, unlink, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { EspeakSegment } from "./emotion-map";
@@ -61,26 +61,30 @@ export async function runCombination(opts: {
   const tmp = await mkdtemp(join(tmpdir(), "nessie-bench-"));
   const runs: RunMetrics[] = [];
 
-  for (let i = 0; i < opts.runs; i++) {
-    const isFinal = i === opts.runs - 1;
-    const drySrc = join(tmp, `dry-${i}.wav`);
-    const fxOut = isFinal ? opts.outPath : join(tmp, `fx-${i}.wav`);
+  try {
+    for (let i = 0; i < opts.runs; i++) {
+      const isFinal = i === opts.runs - 1;
+      const drySrc = join(tmp, `dry-${i}.wav`);
+      const fxOut = isFinal ? opts.outPath : join(tmp, `fx-${i}.wav`);
 
-    const s = await synth({ voice: opts.voice, segments: opts.segments, outPath: drySrc });
-    const fx = await applyFx(drySrc, fxOut, opts.preset);
+      const s = await synth({ voice: opts.voice, segments: opts.segments, outPath: drySrc });
+      const fx = await applyFx(drySrc, fxOut, opts.preset);
 
-    const totalMs = s.totalMs + fx.elapsedMs;
-    runs.push({
-      synthMs: s.totalMs,
-      fxMs: fx.elapsedMs,
-      totalMs,
-      durationSec: fx.durationSec,
-      bytes: fx.bytes,
-      rtf: totalMs / 1000 / fx.durationSec,
-    });
+      const totalMs = s.totalMs + fx.elapsedMs;
+      runs.push({
+        synthMs: s.totalMs,
+        fxMs: fx.elapsedMs,
+        totalMs,
+        durationSec: fx.durationSec,
+        bytes: fx.bytes,
+        rtf: totalMs / 1000 / fx.durationSec,
+      });
 
-    await unlink(drySrc).catch(() => {});
-    if (!isFinal) await unlink(fxOut).catch(() => {});
+      await unlink(drySrc).catch(() => {});
+      if (!isFinal) await unlink(fxOut).catch(() => {});
+    }
+  } finally {
+    await rm(tmp, { recursive: true, force: true }).catch(() => {});
   }
 
   const { mean, min, max } = aggregate(runs);
