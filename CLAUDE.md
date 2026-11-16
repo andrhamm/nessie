@@ -197,3 +197,6 @@ Use `WebSearch` tool for all hardware/electronics research. Never rely on traini
 ### Hardware Knowledge Base
 - [ESP32-P4 hardware doc](docs/hardware/esp32-p4.md) — full specs, ESP-SR support, Waveshare board details
 - [XIAO ESP32-S3 Sense hardware doc](docs/hardware/xiao-esp32-s3-sense.md) — full specs, mic details, comparison
+- [ESP-VoCat (formerly EchoEar) hardware doc](docs/hardware/esp-vocat.md) — prototype front-runner: dual mic + AEC ref, battery, IMU, touch
+- [Waveshare ESP32-S3-AUDIO-Board hardware doc](docs/hardware/waveshare-esp32-s3-audio-board.md) — cheaper no-display alternative, same audio chain
+- [2026 dev board survey](reports/Nessie%20dev%20board%20survey%202026.md) — on-device STT feasibility by hardware tier, ranked shortlist
