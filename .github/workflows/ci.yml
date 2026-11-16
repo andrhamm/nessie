@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  server:
+    name: Server (Bun)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bunx biome check .
+      - run: bunx tsc --noEmit
+      - run: bun run test
+
+  pipeline:
+    name: Pipeline (Python)
+    # mlx-whisper needs Apple Silicon
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: pipeline
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --frozen
+      - run: uvx ruff check .
+      - run: uvx ruff format --check .
+      - run: uv run pytest -q
