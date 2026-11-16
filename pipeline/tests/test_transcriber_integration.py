@@ -6,11 +6,9 @@ Requires the model to be downloaded. Run with:
 Skipped by default in CI (no GPU). Run explicitly when testing locally.
 """
 
-import json
-import subprocess
-import sys
-import pytest
 from pathlib import Path
+
+import pytest
 
 SAMPLES_DIR = Path(__file__).parent.parent.parent / "server" / "voice-samples"
 

@@ -14,8 +14,8 @@ Protocol:
 import base64
 import json
 import sys
-import numpy as np
 
+import numpy as np
 
 # Lazy-load model to avoid slow startup blocking the health check
 _model_repo: str = "mlx-community/whisper-tiny"
@@ -27,6 +27,7 @@ def _ensure_model() -> None:
     if not _model_loaded:
         # Pre-download/cache the model on first use
         import mlx_whisper  # noqa: F401
+
         _model_loaded = True
 
 
@@ -68,16 +69,20 @@ def handle_message(line: str) -> str | None:
         msg_id = msg.get("id", "")
         pcm_base64 = msg.get("pcm_base64", "")
         if not pcm_base64:
-            return json.dumps({"type": "error", "id": msg_id, "message": "missing pcm_base64"})
+            return json.dumps(
+                {"type": "error", "id": msg_id, "message": "missing pcm_base64"}
+            )
         try:
             result = transcribe_pcm(pcm_base64)
-            return json.dumps({
-                "type": "transcript",
-                "id": msg_id,
-                "text": result["text"],
-                "language": result["language"],
-            })
-        except Exception as e:
+            return json.dumps(
+                {
+                    "type": "transcript",
+                    "id": msg_id,
+                    "text": result["text"],
+                    "language": result["language"],
+                }
+            )
+        except Exception as e:  # noqa: BLE001 - stdio boundary reports any failure as JSON
             return json.dumps({"type": "error", "id": msg_id, "message": str(e)})
 
     return json.dumps({"type": "error", "message": f"unknown type: {msg_type}"})

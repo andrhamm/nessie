@@ -2,9 +2,9 @@
 
 import base64
 import json
+from unittest.mock import MagicMock, patch
+
 import numpy as np
-import pytest
-from unittest.mock import patch, MagicMock
 
 from src.transcriber import handle_message, transcribe_pcm
 
@@ -67,15 +67,17 @@ class TestTranscribePcm:
         mock_module = MagicMock()
         mock_module.transcribe.return_value = {"text": "test", "language": "en"}
 
-        with patch.dict("sys.modules", {"mlx_whisper": mock_module}):
-            with patch("src.transcriber._model_loaded", True):
-                pcm = make_pcm_base64(duration_s=0.1)
-                result = transcribe_pcm(pcm)
+        with (
+            patch.dict("sys.modules", {"mlx_whisper": mock_module}),
+            patch("src.transcriber._model_loaded", True),
+        ):
+            pcm = make_pcm_base64(duration_s=0.1)
+            transcribe_pcm(pcm)
 
-                call_args = mock_module.transcribe.call_args
-                audio_arg = call_args[0][0]
-                assert audio_arg.dtype == np.float32
-                assert len(audio_arg) == 1600  # 0.1s * 16000
+            call_args = mock_module.transcribe.call_args
+            audio_arg = call_args[0][0]
+            assert audio_arg.dtype == np.float32
+            assert len(audio_arg) == 1600  # 0.1s * 16000
 
     @patch("src.transcriber.mlx_whisper", create=True)
     def test_values_normalized(self, mock_mlx):
@@ -86,10 +88,12 @@ class TestTranscribePcm:
         samples = np.array([32767, -32768, 0], dtype=np.int16)
         pcm_b64 = base64.b64encode(samples.tobytes()).decode("ascii")
 
-        with patch.dict("sys.modules", {"mlx_whisper": mock_module}):
-            with patch("src.transcriber._model_loaded", True):
-                transcribe_pcm(pcm_b64)
-                audio_arg = mock_module.transcribe.call_args[0][0]
-                assert abs(audio_arg[0] - 1.0) < 0.001  # 32767/32768
-                assert abs(audio_arg[1] - (-1.0)) < 0.001  # -32768/32768
-                assert audio_arg[2] == 0.0
+        with (
+            patch.dict("sys.modules", {"mlx_whisper": mock_module}),
+            patch("src.transcriber._model_loaded", True),
+        ):
+            transcribe_pcm(pcm_b64)
+            audio_arg = mock_module.transcribe.call_args[0][0]
+            assert abs(audio_arg[0] - 1.0) < 0.001  # 32767/32768
+            assert abs(audio_arg[1] - (-1.0)) < 0.001  # -32768/32768
+            assert audio_arg[2] == 0.0
