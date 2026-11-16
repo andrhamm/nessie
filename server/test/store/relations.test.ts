@@ -60,9 +60,9 @@ describe("MdStore graph — person↔person relations", () => {
   it("relatePersons is idempotent — duplicate calls do not double-count", async () => {
     await store.relatePersons(p("grandma-dana"), "parent_of", p("mom-erin"));
     const dana = await store.getPersonRelations("grandma-dana");
-    expect(
-      dana.outgoing.filter((r) => r.edge === "parent_of" && r.to === "mom-erin"),
-    ).toHaveLength(1);
+    expect(dana.outgoing.filter((r) => r.edge === "parent_of" && r.to === "mom-erin")).toHaveLength(
+      1,
+    );
   });
 
   it("unrelatePersons removes only the matching edge", async () => {
