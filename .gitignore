@@ -1,2 +1,17 @@
 .worktrees/
 .DS_Store
+
+# Secrets (dotenvx keys and env files)
+.env
+.env.*
+!.env.example
+
+# Local runtime data: memory, audit logs, recordings
+server/data/
+
+# Private idea queue
+docs/ideas/
+
+# Third-party datasheets: fetched locally by scripts/fetch-datasheets.sh
+docs/hardware/datasheets/*
+!docs/hardware/datasheets/README.md
