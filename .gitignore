@@ -15,3 +15,6 @@ docs/ideas/
 # Third-party datasheets: fetched locally by scripts/fetch-datasheets.sh
 docs/hardware/datasheets/*
 !docs/hardware/datasheets/README.md
+
+# ElevenLabs voice-library previews (third-party voices); regenerate with server/src/cli/voice-sampler.ts
+server/voice-samples/
