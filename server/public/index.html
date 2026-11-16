@@ -13,51 +13,101 @@
         <div id="led" class="led"></div>
         <h1>Nessie</h1>
       </div>
+      <nav class="tab-nav" role="tablist">
+        <button type="button" class="tab-btn active" data-tab="nessie" role="tab" aria-selected="true">Nessie</button>
+        <button type="button" class="tab-btn" data-tab="parent" role="tab" aria-selected="false">Parent</button>
+      </nav>
       <div class="header-right">
+        <label class="tts-select-label" for="tts-select">TTS</label>
+        <select id="tts-select" class="tts-select" aria-label="TTS provider">
+          <option value="elevenlabs">ElevenLabs</option>
+          <option value="chatterbox">Chatterbox</option>
+        </select>
         <span id="status-badge" class="status-badge">Ready</span>
       </div>
     </header>
 
-    <main id="chat-area">
-      <div class="message nessie">
-        <div class="message-bubble">
-          <p>Hi! Hold the big button and talk to me.</p>
+    <section id="nessie-tab" class="tab-panel active" role="tabpanel">
+      <main id="chat-area">
+        <div class="message nessie">
+          <div class="message-bubble">
+            <p>Hi! Hold the big button and talk to me.</p>
+          </div>
         </div>
-      </div>
-    </main>
+      </main>
 
-    <footer>
-      <div id="voice-section" class="voice-section">
-        <button
-          id="mic-btn"
-          type="button"
-          class="mic-btn"
-          aria-label="Hold to talk"
-        >
-          <svg viewBox="0 0 24 24" width="36" height="36" fill="currentColor" aria-hidden="true" role="img">
-            <title>Microphone</title>
-            <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
-            <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
-          </svg>
-          <span class="mic-label" id="mic-label">Hold to talk</span>
-        </button>
-        <div id="transcript-preview" class="transcript-preview" hidden>
-          <span id="transcript-text"></span>
+      <footer>
+        <div id="voice-section" class="voice-section">
+          <button id="mic-btn" type="button" class="mic-btn" aria-label="Hold to talk">
+            <svg viewBox="0 0 24 24" width="36" height="36" fill="currentColor" aria-hidden="true" role="img">
+              <title>Microphone</title>
+              <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+              <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+            </svg>
+            <span class="mic-label" id="mic-label">Hold to talk</span>
+          </button>
+          <div id="transcript-preview" class="transcript-preview" hidden>
+            <span id="transcript-text"></span>
+          </div>
         </div>
-      </div>
 
-      <div class="text-section">
-        <input
-          id="text-input"
-          type="text"
-          placeholder="Type a message..."
-          autocomplete="off"
-        />
-        <button id="send-btn" type="button" class="send-btn" aria-label="Send">Send</button>
+        <div class="text-section">
+          <input id="text-input" type="text" placeholder="Type a message..." autocomplete="off"/>
+          <button id="send-btn" type="button" class="send-btn" aria-label="Send">Send</button>
+        </div>
+      </footer>
+    </section>
+
+    <section id="parent-tab" class="tab-panel" role="tabpanel" hidden>
+      <div class="parent-layout">
+        <div class="parent-chat">
+          <div id="ness-chat" class="ness-chat-area"></div>
+          <form id="ness-form" class="ness-form">
+            <input id="ness-input" type="text" placeholder="Tell Ness what to update…" autocomplete="off"/>
+            <button type="submit" class="send-btn">Send</button>
+          </form>
+        </div>
+        <aside class="parent-sidebar">
+          <section>
+            <h2>Household</h2>
+            <dl id="sidebar-runtime" class="sidebar-kv">
+              <dt>Location</dt><dd id="sidebar-location" class="muted">—</dd>
+              <dt>Timezone</dt><dd id="sidebar-timezone" class="muted">—</dd>
+              <dt>Default voice</dt><dd id="sidebar-voice" class="muted">—</dd>
+              <dt>Default TTS</dt><dd id="sidebar-provider" class="muted">—</dd>
+            </dl>
+          </section>
+          <section>
+            <h2>Routine</h2>
+            <pre id="sidebar-routine" class="sidebar-block">—</pre>
+          </section>
+          <section>
+            <h2>Constraints</h2>
+            <pre id="sidebar-constraints" class="sidebar-block">—</pre>
+          </section>
+          <section>
+            <h2>Children</h2>
+            <ul id="sidebar-profiles" class="sidebar-list"></ul>
+          </section>
+          <section>
+            <h2>Persons</h2>
+            <ul id="sidebar-persons" class="sidebar-list"></ul>
+            <div id="person-detail" class="person-detail" hidden>
+              <button type="button" id="person-detail-close" class="person-detail-close" aria-label="Close">×</button>
+              <h3 id="person-detail-name">—</h3>
+              <div id="person-detail-body"></div>
+            </div>
+          </section>
+          <section>
+            <h2>Upcoming events</h2>
+            <ul id="sidebar-events" class="sidebar-list"></ul>
+          </section>
+        </aside>
       </div>
-    </footer>
+    </section>
   </div>
 
   <script src="/app.js"></script>
+  <script src="/parent.js"></script>
 </body>
 </html>

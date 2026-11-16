@@ -1,5 +1,10 @@
 import { describe, expect, it } from "bun:test";
-import { buildSystemPrompt, CHARACTER_PROMPT, formatUserMessage } from "../../src/agent/prompts";
+import {
+  buildSystemPrompt,
+  CHARACTER_PROMPT,
+  formatUserMessage,
+  speechConventionsFor,
+} from "../../src/agent/prompts";
 
 describe("CHARACTER_PROMPT", () => {
   it("is a non-empty string", () => {
@@ -10,12 +15,17 @@ describe("CHARACTER_PROMPT", () => {
     expect(CHARACTER_PROMPT).toStartWith("You are Nessie");
   });
 
-  it("contains personality section", () => {
-    expect(CHARACTER_PROMPT).toContain("## Personality");
+  it("identifies Nessie as a play companion (not human, not caretaker)", () => {
+    expect(CHARACTER_PROMPT).toContain("## Who Nessie Is");
+    expect(CHARACTER_PROMPT).toMatch(/play companion/i);
+    expect(CHARACTER_PROMPT).toMatch(/child development/i);
   });
 
-  it("contains speech conventions", () => {
-    expect(CHARACTER_PROMPT).toContain("## Speech Conventions");
+  it("contains conversation style guidance (brevity + dialog rhythm)", () => {
+    expect(CHARACTER_PROMPT).toContain("## Conversation Style");
+    expect(CHARACTER_PROMPT).toContain("Match the energy");
+    expect(CHARACTER_PROMPT).toContain("One beat at a time");
+    expect(CHARACTER_PROMPT).toMatch(/at most one question/i);
   });
 
   it("contains safety boundaries", () => {
@@ -34,10 +44,6 @@ describe("CHARACTER_PROMPT", () => {
     expect(CHARACTER_PROMPT).toContain("## Output Format");
   });
 
-  it("references ElevenLabs audio tags", () => {
-    expect(CHARACTER_PROMPT).toContain("ElevenLabs v3 audio tags");
-  });
-
   it("includes what Nessie does and does not do", () => {
     expect(CHARACTER_PROMPT).toContain("## What Nessie Does");
     expect(CHARACTER_PROMPT).toContain("## What Nessie Does NOT Do");
@@ -48,26 +54,80 @@ describe("CHARACTER_PROMPT", () => {
   });
 });
 
+describe("speechConventionsFor", () => {
+  it("returns the ElevenLabs tag set for elevenlabs", () => {
+    const s = speechConventionsFor("elevenlabs");
+    expect(s).toContain("ElevenLabs v3");
+    expect(s).toContain("[pirate voice]");
+    expect(s).toContain("[whispers]");
+  });
+
+  it("returns the Chatterbox paralinguistic tags for chatterbox", () => {
+    const s = speechConventionsFor("chatterbox");
+    expect(s).toContain("Chatterbox");
+    for (const tag of [
+      "[laugh]",
+      "[chuckle]",
+      "[sigh]",
+      "[gasp]",
+      "[cough]",
+      "[clear throat]",
+      "[sniff]",
+      "[groan]",
+      "[shush]",
+    ]) {
+      expect(s).toContain(tag);
+    }
+  });
+
+  it("warns Chatterbox against ALL CAPS (acronym spelling)", () => {
+    const s = speechConventionsFor("chatterbox");
+    expect(s).toContain("ALL CAPS");
+  });
+
+  it("forbids non-paralinguistic tags under Chatterbox", () => {
+    const s = speechConventionsFor("chatterbox");
+    // ElevenLabs-only tags should NOT be documented as valid for chatterbox
+    expect(s).not.toContain("[pirate voice]");
+    expect(s).not.toContain("[whispers]");
+  });
+});
+
 describe("buildSystemPrompt", () => {
-  it("returns character prompt alone when no speaker context", () => {
-    const result = buildSystemPrompt("");
-    expect(result).toBe(CHARACTER_PROMPT);
+  it("starts with the character prompt regardless of provider", () => {
+    const elevenLabs = buildSystemPrompt("", "elevenlabs");
+    const chatterbox = buildSystemPrompt("", "chatterbox");
+    expect(elevenLabs).toStartWith(CHARACTER_PROMPT);
+    expect(chatterbox).toStartWith(CHARACTER_PROMPT);
   });
 
-  it("appends speaker context after character prompt", () => {
+  it("appends the matching speech conventions after the character prompt", () => {
+    const elevenLabs = buildSystemPrompt("", "elevenlabs");
+    expect(elevenLabs).toContain("ElevenLabs v3");
+    expect(elevenLabs).not.toContain("Chatterbox Turbo");
+
+    const chatterbox = buildSystemPrompt("", "chatterbox");
+    expect(chatterbox).toContain("Chatterbox Turbo");
+    expect(chatterbox).not.toContain("[pirate voice]");
+  });
+
+  it("appends speaker context after the speech conventions", () => {
     const context = "## Memories\n- [SPEAKER_0] Alex loves dinosaurs";
-    const result = buildSystemPrompt(context);
-    expect(result).toStartWith(CHARACTER_PROMPT);
+    const result = buildSystemPrompt(context, "elevenlabs");
     expect(result).toContain(context);
-    expect(result).toBe(`${CHARACTER_PROMPT}\n\n${context}`);
+    expect(result.endsWith(context)).toBe(true);
   });
 
-  it("character prompt is always first for cache efficiency", () => {
-    const context = "Speaker context here";
-    const result = buildSystemPrompt(context);
-    const characterEnd = result.indexOf(CHARACTER_PROMPT) + CHARACTER_PROMPT.length;
-    const contextStart = result.indexOf(context);
-    expect(contextStart).toBeGreaterThan(characterEnd);
+  it("appends runtime context strictly last when provided", () => {
+    const context = "## Memories\n- [SPEAKER_0] Alex loves dinosaurs";
+    const runtime = "## Right Now\nDate: Fri 18 Apr 2026";
+    const result = buildSystemPrompt(context, "elevenlabs", runtime);
+    expect(result.endsWith(runtime)).toBe(true);
+    expect(result.indexOf(runtime)).toBeGreaterThan(result.indexOf(context));
+  });
+
+  it("defaults to elevenlabs when provider omitted", () => {
+    expect(buildSystemPrompt("")).toBe(buildSystemPrompt("", "elevenlabs"));
   });
 });
 

@@ -15,6 +15,12 @@ export const AgentInputSchema = z.object({
   text: z.string().describe("Transcribed speech"),
   ambient: z.array(z.string()).describe("Ambient sounds detected"),
   timestamp: z.number().describe("Unix timestamp ms"),
+  tts_provider: z
+    .enum(["elevenlabs", "chatterbox"])
+    .optional()
+    .describe(
+      "TTS provider that will synthesize the response. Shapes the system prompt to match what that provider supports (different tag vocabularies).",
+    ),
 });
 
 export type AgentInput = z.infer<typeof AgentInputSchema>;

@@ -9,11 +9,25 @@
   const led = document.getElementById("led");
   const transcriptPreview = document.getElementById("transcript-preview");
   const transcriptText = document.getElementById("transcript-text");
+  const ttsSelect = document.getElementById("tts-select");
 
   let isListening = false;
   let isProcessing = false;
   const POLL_INTERVAL_MS = 500;
   const DEVICE_ID = "web-client-001";
+  const TTS_STORAGE_KEY = "nessie.tts_provider";
+  const ALLOWED_TTS = ["elevenlabs", "chatterbox"];
+
+  // Restore previously-selected provider; default to elevenlabs
+  const savedTts = localStorage.getItem(TTS_STORAGE_KEY);
+  if (savedTts && ALLOWED_TTS.includes(savedTts)) {
+    ttsSelect.value = savedTts;
+  }
+  ttsSelect.addEventListener("change", () => {
+    localStorage.setItem(TTS_STORAGE_KEY, ttsSelect.value);
+  });
+
+  const speechUrl = () => `/v1/speech?provider=${encodeURIComponent(ttsSelect.value)}`;
 
   // --- AudioWorklet mic capture ---
   let audioContext = null;
@@ -133,6 +147,9 @@
     const tagged = data.response.speech_tagged;
     const memory = data.response.memory_saved;
 
+    const ttsProvider = data.response.tts_provider_used;
+    const ttsLatencyMs = data.response.tts_latency_ms;
+
     let metaHtml = "";
     if (audioUrl) {
       metaHtml += `<button type="button" class="replay-btn" data-audio="${escapeHtml(audioUrl)}">Replay</button>`;
@@ -142,6 +159,10 @@
     }
     if (memory) {
       metaHtml += `<span class="memory-badge">Remembered: ${escapeHtml(memory)}</span>`;
+    }
+    if (ttsProvider) {
+      const latencyStr = typeof ttsLatencyMs === "number" ? ` ${ttsLatencyMs}ms` : "";
+      metaHtml += `<span class="tts-latency">${escapeHtml(ttsProvider)}${escapeHtml(latencyStr)}</span>`;
     }
 
     div.innerHTML =
@@ -240,9 +261,11 @@
       if (!res.ok) throw new Error("Failed to poll");
       const data = await res.json();
 
-      if (data.status === "responding") setStatus("Thinking...", "processing");
+      if (data.status === "transcribing") setStatus("Transcribing...", "processing");
       else if (data.status === "transcribed") setStatus("Processing...", "processing");
-      else if (data.status === "received") setStatus("Transcribing...", "processing");
+      else if (data.status === "thinking") setStatus("Thinking...", "processing");
+      else if (data.status === "speaking") setStatus("Speaking...", "processing");
+      else if (data.status === "received") setStatus("Received...", "processing");
 
       if (data.status === "complete" || data.status === "error") return data;
 
@@ -265,7 +288,7 @@
     setStatus("Processing...", "processing");
 
     try {
-      const res = await fetch("/v1/speech", {
+      const res = await fetch(speechUrl(), {
         method: "POST",
         headers: {
           "Content-Type": "application/octet-stream",
@@ -325,7 +348,7 @@
     setStatus("Processing...", "processing");
 
     try {
-      const res = await fetch("/v1/speech", {
+      const res = await fetch(speechUrl(), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ device_id: DEVICE_ID, transcript: text }),
@@ -386,24 +409,6 @@
   );
   micBtn.addEventListener("touchend", () => {
     stopListening(true);
-  });
-
-  // Space bar hold-to-talk (when not in text input)
-  document.addEventListener("keydown", (e) => {
-    if (
-      e.code === "Space" &&
-      document.activeElement !== textInput &&
-      !isProcessing &&
-      !isListening
-    ) {
-      e.preventDefault();
-      startListening();
-    }
-  });
-  document.addEventListener("keyup", (e) => {
-    if (e.code === "Space" && document.activeElement !== textInput && isListening) {
-      stopListening(true);
-    }
   });
 
   // Text input (fallback)
