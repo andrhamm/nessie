@@ -7,7 +7,7 @@ Nessie is built on a few principles:
 - **A friend, not a caretaker.** Nessie is warm, emotionally literate, and playful, and is grounded in child-development research. It never pretends to be human.
 - **Parents stay in charge.** Parents set routines, content boundaries, and who's who, through a parent console. Every memory the agent writes is auditable.
 - **Privacy by design.** Audio is transcribed on a server on the home network. Raw recordings of children never leave the house. Only text goes to cloud APIs.
-- **Cheap, hackable hardware.** The target is an off-the-shelf ESP32 audio board (about $16–50) sewn into a plush. It handles wake word and voice detection on the device and streams speech to a home server.
+- **Cheap, hackable hardware.** The target is an off-the-shelf ESP32 audio board (about $16–70) sewn into a plush. It handles wake word and voice detection on the device and streams speech to a home server.
 
 > **Status: early prototype.** The server, agent, memory, parent console, and a browser test client work end to end on a Mac. Firmware for the plush hasn't been written yet. Expect breaking changes.
 
