@@ -1,0 +1,12 @@
+decode-wav.ts ported from @audio/decode-wav v1.1.0
+https://www.npmjs.com/package/@audio/decode-wav
+
+Copyright (c) audiojs
+Licensed under MIT.
+
+Decoder logic is byte-for-byte equivalent to the upstream JavaScript
+source. Modifications: ported to TypeScript (explicit types on
+parameters, locals, return values), Biome-style formatting (2-space
+indent, double quotes, trailing commas, semicolons), and `as number` /
+`as Float32Array` casts to satisfy `noUncheckedIndexedAccess` without
+using non-null assertions. No algorithmic changes.
