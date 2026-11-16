@@ -129,6 +129,9 @@ Use `qmd` to search the hardware knowledge base when answering hardware question
 
 ### Development Standards
 
+- **Every piece of code must have tests.** No exceptions. CLI scripts, utilities, glue code — everything. Do not present work as complete until tests pass. If you can't unit test something directly (interactive prompts, hardware I/O), extract the logic into testable functions and test those.
+- **Verify your own work.** Run `bun test` and `bun run lint` before claiming a task is done. Do not hand untested code to the user to debug.
+- **Read SDK types before using an API.** Check `node_modules/*/types` or `.d.ts` files for the actual function signatures, parameter names, and valid enum values. Do not guess API shapes from training data.
 - TDD: Write failing tests first, then implement.
 - Small commits with clear messages.
 - DRY, YAGNI — no speculative abstractions.
