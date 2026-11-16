@@ -1,0 +1,23 @@
+{
+  "name": "surrealdb-poc",
+  "module": "src/index.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "bun test",
+    "test:coverage": "bun test --coverage",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write ."
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.4.4",
+    "@types/bun": "latest",
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "latest",
+    "@surrealdb/node": "^3.0.3",
+    "surrealdb": "^2.0.3",
+    "yaml": "^2.5.0"
+  }
+}
