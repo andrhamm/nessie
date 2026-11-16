@@ -1,0 +1,17 @@
+{
+  "name": "espeak-demo",
+  "module": "src/index.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "demo": "bun run src/index.ts",
+    "test": "bun test",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write ."
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.4.4",
+    "@types/bun": "latest",
+    "typescript": "^5"
+  }
+}
