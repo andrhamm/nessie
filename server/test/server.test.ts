@@ -1,11 +1,10 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { Readable } from "node:stream";
 import type { AgentInput, AgentOutput } from "../src/agent/schemas";
 import { createServer } from "../src/server.ts";
 import type { RouteDeps } from "../src/speech/routes";
 import { SpeechStore } from "../src/speech/store";
 import { MockTranscriberClient } from "../src/speech/transcriber-client";
-import type { TtsClient, TtsConfig } from "../src/tts/elevenlabs";
+import type { TtsProvider } from "../src/tts/provider";
 
 const MOCK_AGENT_OUTPUT: AgentOutput = {
   speech: "[happy] Hello friend!",
@@ -16,18 +15,18 @@ const MOCK_AGENT_OUTPUT: AgentOutput = {
 };
 
 function createTestDeps(): RouteDeps {
+  const ttsProvider: TtsProvider = {
+    name: "elevenlabs",
+    synthesize: async () => new Uint8Array([0xff, 0xfb, 0x90]),
+  };
   return {
     store: new SpeechStore(),
     agent: {
       respond: async (_input: AgentInput): Promise<AgentOutput> => MOCK_AGENT_OUTPUT,
       endSession: () => undefined,
     } as unknown as RouteDeps["agent"],
-    ttsClient: {
-      textToSpeech: {
-        convert: async () => Readable.from([new Uint8Array([0xff, 0xfb, 0x90])]),
-      },
-    } as TtsClient,
-    ttsConfig: { voiceId: "test-voice" } as TtsConfig,
+    ttsProviders: { elevenlabs: ttsProvider },
+    defaultTtsProvider: "elevenlabs",
     transcriber: new MockTranscriberClient("hello"),
   };
 }

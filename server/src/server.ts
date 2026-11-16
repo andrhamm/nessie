@@ -1,6 +1,8 @@
 import { stat } from "node:fs/promises";
 import { extname, join, resolve } from "node:path";
 import { log } from "./logger";
+import type { ParentRouteDeps } from "./parent/routes";
+import { handleParentChat, handleParentPerson, handleParentState } from "./parent/routes";
 import type { RouteDeps } from "./speech/routes";
 import {
   handleSpeechCreate,
@@ -72,10 +74,11 @@ const SPEECH_RESPONSE_AUDIO_PATTERN = /^\/v1\/speech\/([a-z0-9_]+)\/response_aud
 export interface ServerOptions {
   port: number;
   speechDeps?: RouteDeps;
+  parentDeps?: ParentRouteDeps;
 }
 
 export function createServer(options: ServerOptions) {
-  const { speechDeps } = options;
+  const { speechDeps, parentDeps } = options;
 
   return Bun.serve({
     port: options.port,
@@ -158,6 +161,36 @@ export function createServer(options: ServerOptions) {
           return Response.json({ error: "not found" }, { status: 404 });
         }
         return handleSpeechGet(id, speechDeps);
+      }
+
+      // Parent API: POST /v1/parent_chat (SSE)
+      if (url.pathname === "/v1/parent_chat") {
+        if (!parentDeps) {
+          return Response.json({ error: "parent API not configured" }, { status: 503 });
+        }
+        return handleParentChat(req, parentDeps);
+      }
+
+      // Parent API: GET /v1/parent_state
+      if (url.pathname === "/v1/parent_state") {
+        if (req.method !== "GET") {
+          return Response.json({ error: "method not allowed" }, { status: 405 });
+        }
+        if (!parentDeps) {
+          return Response.json({ error: "parent API not configured" }, { status: 503 });
+        }
+        return handleParentState(parentDeps);
+      }
+
+      // Parent API: GET /v1/parent_person?slug=...
+      if (url.pathname === "/v1/parent_person") {
+        if (req.method !== "GET") {
+          return Response.json({ error: "method not allowed" }, { status: 405 });
+        }
+        if (!parentDeps) {
+          return Response.json({ error: "parent API not configured" }, { status: 503 });
+        }
+        return handleParentPerson(req, parentDeps);
       }
 
       // Static file serving (GET only)

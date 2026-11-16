@@ -1,8 +1,8 @@
 import type { NessieAgent } from "../agent/nessie-agent";
 import type { AgentInput } from "../agent/schemas";
 import { log as appLog, logError } from "../logger";
-import type { TtsClient, TtsConfig } from "../tts/elevenlabs";
-import { synthesize } from "../tts/elevenlabs";
+import type { TtsProviderName, TtsProviderRegistry } from "../tts/provider";
+import { selectProvider } from "../tts/provider";
 import { stripTags } from "../utils/speech";
 import type { SpeechStore } from "./store";
 import type { TranscriberClient } from "./transcriber-client";
@@ -12,8 +12,8 @@ import type { TranscriberClient } from "./transcriber-client";
  */
 export interface PipelineDeps {
   agent: NessieAgent;
-  ttsClient: TtsClient;
-  ttsConfig: TtsConfig;
+  ttsProviders: TtsProviderRegistry;
+  defaultTtsProvider: TtsProviderName;
   store: SpeechStore;
   transcriber: TranscriberClient;
 }
@@ -24,10 +24,13 @@ export interface PipelineDeps {
  * Pipeline stages:
  *   1. If status is "received" (PCM audio path): transcribe audio via TranscriberClient,
  *      populate state.input, advance to "transcribed".
- *   2. Set status to "responding".
+ *   2. Set status to "thinking".
  *   3. Call NessieAgent.respond() with the transcript.
- *   4. Call ElevenLabs TTS with the agent's speech output.
+ *   4. Synthesize speech via the selected TTS provider (record latency).
  *   5. Store response data + audio, set status to "complete".
+ *
+ * If `ttsProviderRequested` is provided and configured, it overrides
+ * `defaultTtsProvider` for this request only.
  *
  * On error at any stage, sets status to "error" with the error message.
  */
@@ -36,8 +39,9 @@ export async function runPipeline(
   speechId: string,
   speakerName: string,
   speakerAge: number,
+  ttsProviderRequested?: TtsProviderName,
 ): Promise<void> {
-  const { agent, ttsClient, ttsConfig, store, transcriber } = deps;
+  const { agent, ttsProviders, defaultTtsProvider, store, transcriber } = deps;
 
   const state = store.get(speechId);
   if (!state) {
@@ -62,6 +66,7 @@ export async function runPipeline(
 
       const audioSizeKb = Math.round(state.inputAudio.length / 1024);
       const durationSec = (state.inputAudio.length / 2 / 16000).toFixed(1);
+      store.setStatus(speechId, "transcribing");
       log("transcribing", `${audioSizeKb}KB PCM (~${durationSec}s audio)`);
 
       const transcript = await transcriber.transcribe(state.inputAudio);
@@ -88,11 +93,14 @@ export async function runPipeline(
       return;
     }
 
-    // Stage 2: Mark as responding
-    store.setStatus(speechId, "responding");
+    // Stage 2: Mark as thinking (agent inference)
+    store.setStatus(speechId, "thinking");
     log("agent", `input: "${currentState.input.transcript}"`);
 
-    // Stage 3: Build agent input and call the agent
+    // Stage 3: Build agent input (telling the agent which TTS provider will
+    // synthesise the response so the prompt can match that provider's tag set)
+    // and call the agent
+    const effectiveProvider = ttsProviderRequested ?? defaultTtsProvider;
     const agentInput: AgentInput = {
       device_id: currentState.device_id,
       speaker: {
@@ -104,6 +112,7 @@ export async function runPipeline(
       text: currentState.input.transcript,
       ambient: [],
       timestamp: Date.now(),
+      tts_provider: effectiveProvider,
     };
 
     const agentOutput = await agent.respond(agentInput);
@@ -116,12 +125,20 @@ export async function runPipeline(
       log("memory", `saving: "${agentOutput.save_memory}" about ${agentOutput.memory_speaker}`);
     }
 
-    // Stage 4: Generate TTS audio (skip if no speech)
+    // Stage 4: Select provider and generate TTS audio
+    const ttsProvider = selectProvider(ttsProviders, ttsProviderRequested, defaultTtsProvider);
     let audioBuffer: Uint8Array = new Uint8Array(0);
+    let ttsLatencyMs = 0;
     if (agentOutput.speech.trim()) {
-      log("tts", `generating audio for ${stripTags(agentOutput.speech).length} chars`);
-      audioBuffer = await synthesize(ttsClient, ttsConfig, agentOutput.speech);
-      log("tts done", `${Math.round(audioBuffer.length / 1024)}KB audio`);
+      store.setStatus(speechId, "speaking");
+      log(
+        "tts",
+        `generating audio via ${ttsProvider.name} for ${stripTags(agentOutput.speech).length} chars`,
+      );
+      const ttsStart = performance.now();
+      audioBuffer = await ttsProvider.synthesize(agentOutput.speech);
+      ttsLatencyMs = Math.round(performance.now() - ttsStart);
+      log("tts done", `${Math.round(audioBuffer.length / 1024)}KB audio (${ttsLatencyMs}ms)`);
     } else {
       log("tts", "skipped (empty speech)");
     }
@@ -137,11 +154,13 @@ export async function runPipeline(
         led_color: agentOutput.led_color,
         led_mode: agentOutput.led_mode,
         memory_saved: agentOutput.save_memory,
+        tts_provider_used: ttsProvider.name,
+        tts_latency_ms: ttsLatencyMs,
       },
       audioBuffer,
     );
 
-    log("complete", `total pipeline done`);
+    log("complete", "total pipeline done");
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     logError(`[Pipeline ${speechId}] ERROR: ${message}`);

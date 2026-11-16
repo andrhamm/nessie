@@ -8,7 +8,15 @@ import {
 
 describe("SpeechStatusSchema", () => {
   it("accepts valid statuses", () => {
-    for (const status of ["received", "transcribed", "responding", "complete", "error"]) {
+    for (const status of [
+      "received",
+      "transcribing",
+      "transcribed",
+      "thinking",
+      "speaking",
+      "complete",
+      "error",
+    ]) {
       const result = SpeechStatusSchema.safeParse(status);
       expect(result.success).toBe(true);
     }
@@ -130,6 +138,8 @@ describe("toApiResponse", () => {
         led_color: "#FFD700",
         led_mode: "pulse",
         memory_saved: "Likes pirates",
+        tts_provider_used: "elevenlabs",
+        tts_latency_ms: 100,
       },
       response_audio: new Uint8Array([1, 2, 3]),
     };
@@ -153,6 +163,8 @@ describe("toApiResponse", () => {
         led_color: "#87CEEB",
         led_mode: "solid",
         memory_saved: "",
+        tts_provider_used: "elevenlabs",
+        tts_latency_ms: 100,
       },
       response_audio: new Uint8Array([1, 2, 3]),
     };

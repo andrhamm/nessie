@@ -72,13 +72,13 @@ describe("SpeechStore", () => {
   describe("setStatus", () => {
     it("updates status", () => {
       const state = store.create("web-001", "hello", "SPEAKER_0");
-      store.setStatus(state.id, "responding");
+      store.setStatus(state.id, "thinking");
       const found = store.get(state.id);
-      expect(found?.status).toBe("responding");
+      expect(found?.status).toBe("thinking");
     });
 
     it("does nothing for unknown ID", () => {
-      store.setStatus("sp_doesnotexist", "responding");
+      store.setStatus("sp_doesnotexist", "thinking");
       expect(store.size()).toBe(0);
     });
   });
@@ -93,6 +93,8 @@ describe("SpeechStore", () => {
         led_color: "#87CEEB",
         led_mode: "solid",
         memory_saved: "",
+        tts_provider_used: "elevenlabs" as const,
+        tts_latency_ms: 100,
       };
       const audio = new Uint8Array([1, 2, 3, 4]);
       store.setResponse(state.id, responseData, audio);
@@ -113,6 +115,8 @@ describe("SpeechStore", () => {
           led_color: "",
           led_mode: "",
           memory_saved: "",
+          tts_provider_used: "elevenlabs" as const,
+          tts_latency_ms: 100,
         },
         new Uint8Array(0),
       );

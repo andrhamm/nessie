@@ -1,16 +1,25 @@
 import { z } from "zod";
+import type { TtsProviderName } from "../tts/provider";
+
+export const TtsProviderSchema = z.enum(["elevenlabs", "chatterbox"]);
 
 /**
  * Status state machine for a speech request:
- *   received → transcribed → responding → complete
- *                                       → error
- * For v1 (browser STT), we skip "received" and start at "transcribed"
- * since the transcript arrives with the POST body.
+ *   received → transcribing → transcribed → thinking → speaking → complete
+ *                                                                → error
+ * For the JSON path (browser STT), we skip "received"/"transcribing" and
+ * start at "transcribed" since the transcript arrives with the POST body.
+ *
+ * `thinking` covers agent inference; `speaking` covers TTS synthesis. Split
+ * so the UI can show meaningful progress for each stage — TTS can be the
+ * slowest step on local providers.
  */
 export const SpeechStatusSchema = z.enum([
   "received",
+  "transcribing",
   "transcribed",
-  "responding",
+  "thinking",
+  "speaking",
   "complete",
   "error",
 ]);
@@ -27,6 +36,7 @@ export const SpeechRequestSchema = z.object({
   transcript: z.string().min(1),
   speaker_name: z.string().default("Friend"),
   speaker_age: z.number().default(0),
+  tts_provider: TtsProviderSchema.optional(),
 });
 
 export type SpeechRequest = z.infer<typeof SpeechRequestSchema>;
@@ -49,6 +59,8 @@ export interface SpeechResponseData {
   led_color: string;
   led_mode: string;
   memory_saved: string;
+  tts_provider_used: TtsProviderName;
+  tts_latency_ms: number;
 }
 
 /**
@@ -87,6 +99,8 @@ export interface SpeechApiResponse {
     led_color: string;
     led_mode: string;
     memory_saved: string;
+    tts_provider_used: TtsProviderName;
+    tts_latency_ms: number;
   };
   error?: string;
 }
@@ -116,6 +130,8 @@ export function toApiResponse(state: SpeechState): SpeechApiResponse {
       led_color: state.response.led_color,
       led_mode: state.response.led_mode,
       memory_saved: state.response.memory_saved,
+      tts_provider_used: state.response.tts_provider_used,
+      tts_latency_ms: state.response.tts_latency_ms,
     };
   }
 

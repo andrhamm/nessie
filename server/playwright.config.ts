@@ -28,7 +28,7 @@ export default defineConfig({
   ],
 
   webServer: {
-    command: "bun run src/index.ts serve",
+    command: "dotenvx run -- bun run src/index.ts serve",
     url: "http://localhost:3000/health",
     reuseExistingServer: !process.env.GITHUB_ACTIONS,
     timeout: 60 * 1000,

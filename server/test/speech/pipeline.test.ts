@@ -1,12 +1,11 @@
 import { beforeEach, describe, expect, it } from "bun:test";
-import { Readable } from "node:stream";
 import type { NessieAgent } from "../../src/agent/nessie-agent";
 import type { AgentInput, AgentOutput } from "../../src/agent/schemas";
 import type { PipelineDeps } from "../../src/speech/pipeline";
 import { runPipeline } from "../../src/speech/pipeline";
 import { SpeechStore } from "../../src/speech/store";
 import { MockTranscriberClient } from "../../src/speech/transcriber-client";
-import type { TtsClient, TtsConfig } from "../../src/tts/elevenlabs";
+import type { TtsProvider } from "../../src/tts/provider";
 
 const MOCK_AGENT_OUTPUT: AgentOutput = {
   speech: "[excited] Arr, Captain Alex! Let's find treasure!",
@@ -33,28 +32,22 @@ function createFailingAgent(error: Error): NessieAgent {
   } as unknown as NessieAgent;
 }
 
-function createMockTtsClient(audio?: Uint8Array): TtsClient {
+function createMockTtsProvider(name: "elevenlabs" | "chatterbox", audio?: Uint8Array): TtsProvider {
   const audioData = audio ?? new Uint8Array([0xff, 0xfb, 0x90, 0x00]);
   return {
-    textToSpeech: {
-      convert: async () => Readable.from([audioData]),
-    },
+    name,
+    synthesize: async () => audioData,
   };
 }
 
-function createFailingTtsClient(error: Error): TtsClient {
+function createFailingTtsProvider(error: Error): TtsProvider {
   return {
-    textToSpeech: {
-      convert: async () => {
-        throw error;
-      },
+    name: "elevenlabs",
+    synthesize: async () => {
+      throw error;
     },
   };
 }
-
-const TTS_CONFIG: TtsConfig = {
-  voiceId: "test-voice-id",
-};
 
 describe("runPipeline", () => {
   let store: SpeechStore;
@@ -64,8 +57,8 @@ describe("runPipeline", () => {
     store = new SpeechStore();
     deps = {
       agent: createMockAgent(),
-      ttsClient: createMockTtsClient(),
-      ttsConfig: TTS_CONFIG,
+      ttsProviders: { elevenlabs: createMockTtsProvider("elevenlabs") },
+      defaultTtsProvider: "elevenlabs",
       store,
       transcriber: new MockTranscriberClient("let's play pirates"),
     };
@@ -89,7 +82,7 @@ describe("runPipeline", () => {
 
   it("stores TTS audio buffer", async () => {
     const audioData = new Uint8Array([1, 2, 3, 4, 5]);
-    deps.ttsClient = createMockTtsClient(audioData);
+    deps.ttsProviders = { elevenlabs: createMockTtsProvider("elevenlabs", audioData) };
 
     const state = store.create("web-001", "hello", "SPEAKER_0");
     await runPipeline(deps, state.id, "Alex", 6);
@@ -113,7 +106,7 @@ describe("runPipeline", () => {
 
     await runPipeline(deps, state.id, "Alex", 6);
 
-    expect(statusLog).toContain("responding");
+    expect(statusLog).toContain("thinking");
     expect(store.get(state.id)?.status).toBe("complete");
   });
 
@@ -128,7 +121,7 @@ describe("runPipeline", () => {
   });
 
   it("handles TTS error", async () => {
-    deps.ttsClient = createFailingTtsClient(new Error("TTS rate limit"));
+    deps.ttsProviders = { elevenlabs: createFailingTtsProvider(new Error("TTS rate limit")) };
     const state = store.create("web-001", "hello", "SPEAKER_0");
     await runPipeline(deps, state.id, "Alex", 6);
 
@@ -167,11 +160,12 @@ describe("runPipeline", () => {
     deps.agent = createMockAgent(silentOutput);
 
     let ttsCalled = false;
-    deps.ttsClient = {
-      textToSpeech: {
-        convert: async () => {
+    deps.ttsProviders = {
+      elevenlabs: {
+        name: "elevenlabs",
+        synthesize: async () => {
           ttsCalled = true;
-          return Readable.from([new Uint8Array([0])]);
+          return new Uint8Array([0]);
         },
       },
     };
@@ -227,6 +221,51 @@ describe("runPipeline", () => {
     const result = store.get(state.id);
     expect(result?.status).toBe("error");
     expect(result?.error).toBe("No audio data available");
+  });
+
+  it("records tts_provider_used and tts_latency_ms from the default provider", async () => {
+    const state = store.create("web-001", "hello", "SPEAKER_0");
+    await runPipeline(deps, state.id, "Alex", 6);
+
+    const result = store.get(state.id);
+    expect(result?.response?.tts_provider_used).toBe("elevenlabs");
+    expect(typeof result?.response?.tts_latency_ms).toBe("number");
+    expect(result?.response?.tts_latency_ms).toBeGreaterThanOrEqual(0);
+  });
+
+  it("uses requested provider when both are registered", async () => {
+    deps.ttsProviders = {
+      elevenlabs: createMockTtsProvider("elevenlabs", new Uint8Array([1])),
+      chatterbox: createMockTtsProvider("chatterbox", new Uint8Array([2, 2])),
+    };
+    const state = store.create("web-001", "hello", "SPEAKER_0");
+    await runPipeline(deps, state.id, "Alex", 6, "chatterbox");
+
+    const result = store.get(state.id);
+    expect(result?.response?.tts_provider_used).toBe("chatterbox");
+    expect(result?.response_audio).toEqual(new Uint8Array([2, 2]));
+  });
+
+  it("falls back to defaultTtsProvider when no provider requested", async () => {
+    deps.ttsProviders = {
+      elevenlabs: createMockTtsProvider("elevenlabs", new Uint8Array([1])),
+      chatterbox: createMockTtsProvider("chatterbox", new Uint8Array([2, 2])),
+    };
+    deps.defaultTtsProvider = "chatterbox";
+    const state = store.create("web-001", "hello", "SPEAKER_0");
+    await runPipeline(deps, state.id, "Alex", 6);
+
+    const result = store.get(state.id);
+    expect(result?.response?.tts_provider_used).toBe("chatterbox");
+  });
+
+  it("errors when requested provider is not configured", async () => {
+    const state = store.create("web-001", "hello", "SPEAKER_0");
+    await runPipeline(deps, state.id, "Alex", 6, "chatterbox");
+
+    const result = store.get(state.id);
+    expect(result?.status).toBe("error");
+    expect(result?.error).toMatch(/chatterbox/);
   });
 
   it("sets error when transcriber fails", async () => {

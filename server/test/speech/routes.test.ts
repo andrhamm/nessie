@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it } from "bun:test";
-import { Readable } from "node:stream";
 import type { NessieAgent } from "../../src/agent/nessie-agent";
 import type { AgentInput, AgentOutput } from "../../src/agent/schemas";
 import {
@@ -11,7 +10,7 @@ import {
 } from "../../src/speech/routes";
 import { SpeechStore } from "../../src/speech/store";
 import { MockTranscriberClient } from "../../src/speech/transcriber-client";
-import type { TtsClient, TtsConfig } from "../../src/tts/elevenlabs";
+import type { TtsProvider } from "../../src/tts/provider";
 
 const MOCK_AGENT_OUTPUT: AgentOutput = {
   speech: "[excited] Hello!",
@@ -28,15 +27,12 @@ function createMockAgent(): NessieAgent {
   } as unknown as NessieAgent;
 }
 
-function createMockTtsClient(): TtsClient {
+function createMockTtsProvider(): TtsProvider {
   return {
-    textToSpeech: {
-      convert: async () => Readable.from([new Uint8Array([0xff, 0xfb, 0x90])]),
-    },
+    name: "elevenlabs",
+    synthesize: async () => new Uint8Array([0xff, 0xfb, 0x90]),
   };
 }
-
-const TTS_CONFIG: TtsConfig = { voiceId: "test-voice" };
 
 // Minimal PCM bytes for binary POST tests (a few Int16 samples at 16kHz)
 const SAMPLE_PCM = new Uint8Array([0x00, 0x00, 0x10, 0x00, 0x20, 0x00]);
@@ -48,8 +44,8 @@ describe("handleSpeechCreate — JSON mode", () => {
     deps = {
       store: new SpeechStore(),
       agent: createMockAgent(),
-      ttsClient: createMockTtsClient(),
-      ttsConfig: TTS_CONFIG,
+      ttsProviders: { elevenlabs: createMockTtsProvider() },
+      defaultTtsProvider: "elevenlabs",
       transcriber: new MockTranscriberClient("hello nessie"),
     };
   });
@@ -135,6 +131,35 @@ describe("handleSpeechCreate — JSON mode", () => {
     expect(res.status).toBe(400);
   });
 
+  it("returns 400 for invalid ?provider= query param", async () => {
+    const req = new Request("http://localhost/v1/speech?provider=whisper", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ device_id: "web-001", transcript: "hello" }),
+    });
+
+    const res = await handleSpeechCreate(req, deps);
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: string; allowed: string[] };
+    expect(body.error).toMatch(/whisper/);
+    expect(body.allowed).toContain("elevenlabs");
+  });
+
+  it("accepts ?provider=chatterbox when registered", async () => {
+    deps.ttsProviders = {
+      elevenlabs: createMockTtsProvider(),
+      chatterbox: { name: "chatterbox", synthesize: async () => new Uint8Array([9]) },
+    };
+    const req = new Request("http://localhost/v1/speech?provider=chatterbox", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ device_id: "web-001", transcript: "hello" }),
+    });
+
+    const res = await handleSpeechCreate(req, deps);
+    expect(res.status).toBe(201);
+  });
+
   it("accepts optional speaker_name and speaker_age", async () => {
     const req = new Request("http://localhost/v1/speech", {
       method: "POST",
@@ -159,8 +184,8 @@ describe("handleSpeechCreate — binary PCM mode", () => {
     deps = {
       store: new SpeechStore(),
       agent: createMockAgent(),
-      ttsClient: createMockTtsClient(),
-      ttsConfig: TTS_CONFIG,
+      ttsProviders: { elevenlabs: createMockTtsProvider() },
+      defaultTtsProvider: "elevenlabs",
       transcriber: new MockTranscriberClient("hello from audio"),
     };
   });
@@ -206,7 +231,9 @@ describe("handleSpeechCreate — binary PCM mode", () => {
     const state = deps.store.get(body.id);
     expect(state).toBeDefined();
     expect(state?.inputAudio).toEqual(SAMPLE_PCM);
-    expect(state?.status).toBe("received");
+    // The pipeline runs synchronously up to the awaited transcriber call, so
+    // status is "transcribing" by the time we observe it.
+    expect(state?.status).toBe("transcribing");
 
     // Unblock the pipeline to avoid resource leaks in test
     latch.fn?.("hello");
@@ -255,8 +282,8 @@ describe("handleSpeechGet", () => {
     deps = {
       store: new SpeechStore(),
       agent: createMockAgent(),
-      ttsClient: createMockTtsClient(),
-      ttsConfig: TTS_CONFIG,
+      ttsProviders: { elevenlabs: createMockTtsProvider() },
+      defaultTtsProvider: "elevenlabs",
       transcriber: new MockTranscriberClient(),
     };
   });
@@ -296,6 +323,8 @@ describe("handleSpeechGet", () => {
         led_color: "#87CEEB",
         led_mode: "solid",
         memory_saved: "",
+        tts_provider_used: "elevenlabs" as const,
+        tts_latency_ms: 100,
       },
       new Uint8Array([1, 2, 3]),
     );
@@ -327,8 +356,8 @@ describe("handleSpeechInputAudio", () => {
     deps = {
       store: new SpeechStore(),
       agent: createMockAgent(),
-      ttsClient: createMockTtsClient(),
-      ttsConfig: TTS_CONFIG,
+      ttsProviders: { elevenlabs: createMockTtsProvider() },
+      defaultTtsProvider: "elevenlabs",
       transcriber: new MockTranscriberClient(),
     };
   });
@@ -378,8 +407,8 @@ describe("handleSpeechResponseAudio", () => {
     deps = {
       store: new SpeechStore(),
       agent: createMockAgent(),
-      ttsClient: createMockTtsClient(),
-      ttsConfig: TTS_CONFIG,
+      ttsProviders: { elevenlabs: createMockTtsProvider() },
+      defaultTtsProvider: "elevenlabs",
       transcriber: new MockTranscriberClient(),
     };
   });
@@ -396,6 +425,8 @@ describe("handleSpeechResponseAudio", () => {
         led_color: "#87CEEB",
         led_mode: "solid",
         memory_saved: "",
+        tts_provider_used: "elevenlabs" as const,
+        tts_latency_ms: 100,
       },
       audioData,
     );
@@ -431,6 +462,8 @@ describe("handleSpeechResponseAudio", () => {
         led_color: "",
         led_mode: "",
         memory_saved: "",
+        tts_provider_used: "elevenlabs" as const,
+        tts_latency_ms: 100,
       },
       new Uint8Array(0),
     );

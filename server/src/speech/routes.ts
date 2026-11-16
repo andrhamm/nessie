@@ -1,9 +1,9 @@
 import type { NessieAgent } from "../agent/nessie-agent";
-import type { TtsClient, TtsConfig } from "../tts/elevenlabs";
+import type { TtsProviderName, TtsProviderRegistry } from "../tts/provider";
 import { runPipeline } from "./pipeline";
 import type { SpeechStore } from "./store";
 import type { TranscriberClient } from "./transcriber-client";
-import { SpeechRequestSchema, toApiResponse } from "./types";
+import { SpeechRequestSchema, TtsProviderSchema, toApiResponse } from "./types";
 
 /**
  * Dependencies for speech route handlers.
@@ -11,19 +11,40 @@ import { SpeechRequestSchema, toApiResponse } from "./types";
 export interface RouteDeps {
   store: SpeechStore;
   agent: NessieAgent;
-  ttsClient: TtsClient;
-  ttsConfig: TtsConfig;
+  ttsProviders: TtsProviderRegistry;
+  defaultTtsProvider: TtsProviderName;
   transcriber: TranscriberClient;
+}
+
+/**
+ * Parse the optional `provider` query parameter. Returns:
+ *   - `undefined` if absent (caller falls back to defaultTtsProvider)
+ *   - a `TtsProviderName` if the value validates
+ *   - a Response (400) if the value is present but invalid
+ */
+function parseProviderQueryParam(url: URL): TtsProviderName | undefined | Response {
+  const raw = url.searchParams.get("provider");
+  if (raw === null) return undefined;
+  const parsed = TtsProviderSchema.safeParse(raw);
+  if (!parsed.success) {
+    return Response.json(
+      { error: `invalid tts provider: ${raw}`, allowed: TtsProviderSchema.options },
+      { status: 400 },
+    );
+  }
+  return parsed.data;
 }
 
 /**
  * POST /v1/speech
  *
- * Accepts two modes:
+ * Optional query param `?provider=elevenlabs|chatterbox` selects the TTS
+ * engine for this request; if absent, uses `defaultTtsProvider`. Mode A may
+ * also pass `tts_provider` in the JSON body (query param wins).
  *
  * Mode A — JSON transcript (legacy browser STT):
  *   Content-Type: application/json
- *   Body: { device_id, transcript, speaker_name?, speaker_age? }
+ *   Body: { device_id, transcript, speaker_name?, speaker_age?, tts_provider? }
  *
  * Mode B — Raw PCM audio (AudioWorklet):
  *   Content-Type: application/octet-stream
@@ -36,6 +57,10 @@ export async function handleSpeechCreate(req: Request, deps: RouteDeps): Promise
   if (req.method !== "POST") {
     return Response.json({ error: "method not allowed" }, { status: 405 });
   }
+
+  const url = new URL(req.url);
+  const providerFromQuery = parseProviderQueryParam(url);
+  if (providerFromQuery instanceof Response) return providerFromQuery;
 
   const contentType = req.headers.get("Content-Type") ?? "";
 
@@ -64,14 +89,15 @@ export async function handleSpeechCreate(req: Request, deps: RouteDeps): Promise
     runPipeline(
       {
         agent: deps.agent,
-        ttsClient: deps.ttsClient,
-        ttsConfig: deps.ttsConfig,
+        ttsProviders: deps.ttsProviders,
+        defaultTtsProvider: deps.defaultTtsProvider,
         store: deps.store,
         transcriber: deps.transcriber,
       },
       state.id,
       "Friend",
       0,
+      providerFromQuery,
     ).catch((err: unknown) => {
       const message = err instanceof Error ? err.message : String(err);
       deps.store.setError(state.id, `Pipeline crashed: ${message}`);
@@ -97,7 +123,8 @@ export async function handleSpeechCreate(req: Request, deps: RouteDeps): Promise
     return Response.json({ error: "validation failed", details: errors }, { status: 400 });
   }
 
-  const { device_id, transcript, speaker_name, speaker_age } = parsed.data;
+  const { device_id, transcript, speaker_name, speaker_age, tts_provider } = parsed.data;
+  const requestedProvider = providerFromQuery ?? tts_provider;
 
   // Create the speech entry
   const state = deps.store.create(device_id, transcript, "SPEAKER_0");
@@ -106,14 +133,15 @@ export async function handleSpeechCreate(req: Request, deps: RouteDeps): Promise
   runPipeline(
     {
       agent: deps.agent,
-      ttsClient: deps.ttsClient,
-      ttsConfig: deps.ttsConfig,
+      ttsProviders: deps.ttsProviders,
+      defaultTtsProvider: deps.defaultTtsProvider,
       store: deps.store,
       transcriber: deps.transcriber,
     },
     state.id,
     speaker_name,
     speaker_age,
+    requestedProvider,
   ).catch((err: unknown) => {
     const message = err instanceof Error ? err.message : String(err);
     deps.store.setError(state.id, `Pipeline crashed: ${message}`);
